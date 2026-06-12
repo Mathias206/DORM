@@ -10,7 +10,9 @@ from graphlib import CycleError, TopologicalSorter
 from itertools import chain
 
 from django.forms.utils import flatatt, to_current_timezone
-from django.templatetags.static import static
+def static(path):
+    """Stub for django.templatetags.static.static; media URLs are not available."""
+    return path
 from django.utils import formats
 from django.utils.choices import normalize_choices
 from django.utils.dates import MONTHS

@@ -1,5 +1,4 @@
 from django.core.exceptions import ObjectDoesNotExist
-from django.db.models import signals
 from django.db.models.aggregates import *  # NOQA
 from django.db.models.aggregates import __all__ as aggregates_all
 from django.db.models.constraints import *  # NOQA
@@ -76,7 +75,6 @@ from django.db.models.fields.related import (  # isort:skip
 __all__ = aggregates_all + constraints_all + enums_all + fields_all + indexes_all
 __all__ += [
     "ObjectDoesNotExist",
-    "signals",
     "CASCADE",
     "DB_CASCADE",
     "DB_SET_DEFAULT",

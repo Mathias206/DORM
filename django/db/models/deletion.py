@@ -4,7 +4,7 @@ from itertools import chain
 from operator import attrgetter, or_
 
 from django.db import IntegrityError, connections, models, transaction
-from django.db.models import query_utils, signals, sql
+from django.db.models import query_utils, sql
 
 
 class ProtectedError(IntegrityError):
@@ -203,9 +203,7 @@ class Collector:
             self.clear_restricted_objects_from_set(model, objs)
 
     def _has_signal_listeners(self, model):
-        return signals.pre_delete.has_listeners(
-            model
-        ) or signals.post_delete.has_listeners(model)
+        return False
 
     def can_fast_delete(self, objs, from_field=None):
         """
@@ -487,16 +485,6 @@ class Collector:
                 return count, {model._meta.label: count}
 
         with transaction.atomic(using=self.using, savepoint=False):
-            # send pre_delete signals
-            for model, obj in self.instances_with_model():
-                if not model._meta.auto_created:
-                    signals.pre_delete.send(
-                        sender=model,
-                        instance=obj,
-                        using=self.using,
-                        origin=self.origin,
-                    )
-
             # fast deletes
             for qs in self.fast_deletes:
                 count = qs._raw_delete(using=self.using)
@@ -536,15 +524,6 @@ class Collector:
                 count = query.delete_batch(pk_list, self.using)
                 if count:
                     deleted_counter[model._meta.label] += count
-
-                if not model._meta.auto_created:
-                    for obj in instances:
-                        signals.post_delete.send(
-                            sender=model,
-                            instance=obj,
-                            using=self.using,
-                            origin=self.origin,
-                        )
 
         for model, instances in self.data.items():
             for instance in instances:

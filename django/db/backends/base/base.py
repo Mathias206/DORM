@@ -14,7 +14,6 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db import DEFAULT_DB_ALIAS, DatabaseError, NotSupportedError
 from django.db.backends import utils
 from django.db.backends.base.validation import BaseDatabaseValidation
-from django.db.backends.signals import connection_created
 from django.db.backends.utils import debug_transaction
 from django.db.transaction import TransactionManagementError
 from django.db.utils import DatabaseErrorWrapper, ProgrammingError
@@ -256,7 +255,6 @@ class BaseDatabaseWrapper:
         self.connection = self.get_new_connection(conn_params)
         self.set_autocommit(self.settings_dict["AUTOCOMMIT"])
         self.init_connection_state()
-        connection_created.send(sender=self.__class__, connection=self)
 
         self.run_on_commit = []
 

@@ -8,7 +8,6 @@ from django.core.files.base import ContentFile, File
 from django.core.files.images import ImageFile
 from django.core.files.storage import Storage, default_storage
 from django.core.files.utils import validate_file_name
-from django.db.models import signals
 from django.db.models.expressions import DatabaseDefault
 from django.db.models.fields import Field
 from django.db.models.query_utils import DeferredAttribute
@@ -472,8 +471,8 @@ class ImageField(FileField):
         # Model.__init__, see bug #11196.
         # Only run post-initialization dimension update on non-abstract models
         # with width_field/height_field.
-        if not cls._meta.abstract and (self.width_field or self.height_field):
-            signals.post_init.connect(self.update_dimension_fields, sender=cls)
+        # Signal-based dimension update removed because django.db.models.signals
+        # is not part of the extracted ORM.
 
     def update_dimension_fields(self, instance, force=False, *args, **kwargs):
         """

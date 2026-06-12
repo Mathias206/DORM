@@ -44,13 +44,6 @@ from django.db.models.functions import Coalesce
 from django.db.models.manager import Manager
 from django.db.models.options import Options
 from django.db.models.query import F, Q
-from django.db.models.signals import (
-    class_prepared,
-    post_init,
-    post_save,
-    pre_init,
-    pre_save,
-)
 from django.db.models.utils import AltersData, make_model_tuple
 from django.utils.encoding import force_str
 from django.utils.hashable import make_hashable
@@ -448,8 +441,6 @@ class ModelBase(type):
             if not index.name:
                 index.set_name_with_model(cls)
 
-        class_prepared.send(sender=cls)
-
     @property
     def _base_manager(cls):
         return cls._meta.base_manager
@@ -507,8 +498,6 @@ class Model(AltersData, metaclass=ModelBase):
         _DEFERRED = DEFERRED
         if opts.abstract:
             raise TypeError("Abstract models cannot be instantiated.")
-
-        pre_init.send(sender=cls, args=args, kwargs=kwargs)
 
         # Set up the storage for instance state
         self._state = ModelState()
@@ -612,7 +601,6 @@ class Model(AltersData, metaclass=ModelBase):
                     f"{unexpected_names}"
                 )
         super().__init__()
-        post_init.send(sender=cls, instance=self)
 
     @classmethod
     def from_db(cls, db, field_names, values, *, fetch_mode=None):
@@ -972,14 +960,6 @@ class Model(AltersData, metaclass=ModelBase):
         if cls._meta.proxy:
             cls = cls._meta.concrete_model
         meta = cls._meta
-        if not meta.auto_created:
-            pre_save.send(
-                sender=origin,
-                instance=self,
-                raw=raw,
-                using=using,
-                update_fields=update_fields,
-            )
         # A transaction isn't needed if one query is issued.
         if meta.parents:
             context_manager = transaction.atomic(using=using, savepoint=False)
@@ -1005,17 +985,6 @@ class Model(AltersData, metaclass=ModelBase):
         self._state.db = using
         # Once saved, this is no longer a to-be-added instance.
         self._state.adding = False
-
-        # Signal that the save is complete
-        if not meta.auto_created:
-            post_save.send(
-                sender=origin,
-                instance=self,
-                created=(not updated),
-                update_fields=update_fields,
-                raw=raw,
-                using=using,
-            )
 
     save_base.alters_data = True
 
