@@ -71,7 +71,7 @@ def flatten_choices(choices):
 
 def normalize_choices(value, *, depth=0):
     """Normalize choices values consistently for fields and widgets."""
-    # Avoid circular import when importing django.forms.
+    # Avoid circular import when importing enums.
     from django.db.models.enums import ChoicesType
 
     match value:

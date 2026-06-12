@@ -224,8 +224,6 @@ INSTALLED_APPS = []
 
 TEMPLATES = []
 
-# Default form rendering class.
-FORM_RENDERER = "django.forms.renderers.DjangoTemplates"
 # RemovedInDjango70Warning: This setting allows to revert back to the old
 # blank choice label in Django 6.1.
 USE_BLANK_CHOICE_DASH = False

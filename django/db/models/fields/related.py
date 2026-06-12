@@ -2,7 +2,6 @@ import functools
 import inspect
 from functools import partial
 
-from django import forms
 from django.apps import apps
 from django.conf import SettingsReference, settings
 from django.core import checks, exceptions
@@ -489,27 +488,6 @@ class RelatedField(FieldCacheMixin, Field):
             return self.remote_field.limit_choices_to()
         return self.remote_field.limit_choices_to
 
-    def formfield(self, **kwargs):
-        """
-        Pass ``limit_choices_to`` to the field being constructed.
-
-        Only passes it if there is a type that supports related fields.
-        This is a similar strategy used to pass the ``queryset`` to the field
-        being constructed.
-        """
-        defaults = {}
-        if hasattr(self.remote_field, "get_related_field"):
-            # If this is a callable, do not invoke it here. Just pass
-            # it in the defaults for when the form class will later be
-            # instantiated.
-            limit_choices_to = self.remote_field.limit_choices_to
-            defaults.update(
-                {
-                    "limit_choices_to": limit_choices_to,
-                }
-            )
-        defaults.update(kwargs)
-        return super().formfield(**defaults)
 
     def related_query_name(self):
         """
@@ -1285,22 +1263,6 @@ class ForeignKey(ForeignObject):
         if self.remote_field.field_name is None:
             self.remote_field.field_name = cls._meta.pk.name
 
-    def formfield(self, *, using=None, **kwargs):
-        if isinstance(self.remote_field.model, str):
-            raise ValueError(
-                "Cannot create form field for %r yet, because "
-                "its related model %r has not been loaded yet"
-                % (self.name, self.remote_field.model)
-            )
-        return super().formfield(
-            **{
-                "form_class": forms.ModelChoiceField,
-                "queryset": self.remote_field.model._default_manager.using(using),
-                "to_field_name": self.remote_field.field_name,
-                **kwargs,
-                "blank": self.blank,
-            }
-        )
 
     def db_check(self, connection):
         return None
@@ -1370,20 +1332,7 @@ class OneToOneField(ForeignKey):
             del kwargs["unique"]
         return name, path, args, kwargs
 
-    def formfield(self, **kwargs):
-        if self.remote_field.parent_link:
-            return None
-        return super().formfield(**kwargs)
 
-    def save_form_data(self, instance, data):
-        if isinstance(data, self.remote_field.model):
-            setattr(instance, self.name, data)
-        else:
-            setattr(instance, self.attname, data)
-            # Remote field object must be cleared otherwise Model.save()
-            # will reassign attname using the related object pk.
-            if data is None:
-                setattr(instance, self.name, data)
 
     def _check_unique(self, **kwargs):
         # Override ForeignKey since check isn't applicable here.
@@ -2129,23 +2078,7 @@ class ManyToManyField(RelatedField):
     def value_from_object(self, obj):
         return list(getattr(obj, self.attname).all()) if obj._is_pk_set() else []
 
-    def save_form_data(self, instance, data):
-        getattr(instance, self.attname).set(data)
 
-    def formfield(self, *, using=None, **kwargs):
-        defaults = {
-            "form_class": forms.ModelMultipleChoiceField,
-            "queryset": self.remote_field.model._default_manager.using(using),
-            **kwargs,
-        }
-        # If initial is passed in, it's a list of related objects, but the
-        # MultipleChoiceField takes a list of IDs.
-        if defaults.get("initial") is not None:
-            initial = defaults["initial"]
-            if callable(initial):
-                initial = initial()
-            defaults["initial"] = [i.pk for i in initial]
-        return super().formfield(**defaults)
 
     def db_check(self, connection):
         return None

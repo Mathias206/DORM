@@ -1,7 +1,6 @@
 import datetime
 import posixpath
 
-from django import forms
 from django.core import checks
 from django.core.exceptions import FieldError
 from django.core.files.base import ContentFile, File
@@ -359,24 +358,7 @@ class FileField(Field):
         filename = validate_file_name(filename, allow_relative_path=True)
         return self.storage.generate_filename(filename)
 
-    def save_form_data(self, instance, data):
-        # Important: None means "no change", other false value means "clear"
-        # This subtle distinction (rather than a more explicit marker) is
-        # needed because we need to consume values that are also sane for a
-        # regular (non Model-) Form to find in its cleaned_data dictionary.
-        if data is not None:
-            # This value will be converted to str and stored in the
-            # database, so leaving False as-is is not acceptable.
-            setattr(instance, self.name, data or "")
 
-    def formfield(self, **kwargs):
-        return super().formfield(
-            **{
-                "form_class": forms.FileField,
-                "max_length": self.max_length,
-                **kwargs,
-            }
-        )
 
 
 class ImageFileDescriptor(FileDescriptor):
@@ -531,10 +513,3 @@ class ImageField(FileField):
         if self.height_field:
             setattr(instance, self.height_field, height)
 
-    def formfield(self, **kwargs):
-        return super().formfield(
-            **{
-                "form_class": forms.ImageField,
-                **kwargs,
-            }
-        )
