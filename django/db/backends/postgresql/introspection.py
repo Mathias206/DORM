@@ -305,8 +305,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
                 basic_index = (
                     type_ == self.index_default_access_method
                     and
-                    # '_btree' references
-                    # django.contrib.postgres.indexes.BTreeIndex.suffix.
+                    # '_btree' references the suffix used by B-tree indexes.
                     not index.endswith("_btree")
                     and options is None
                 )

@@ -304,7 +304,7 @@ class UniqueConstraint(BaseConstraint):
         if expressions and opclasses:
             raise ValueError(
                 "UniqueConstraint.opclasses cannot be used with expressions. "
-                "Use django.contrib.postgres.indexes.OpClass() instead."
+                "Use a custom functional index expression instead."
             )
         if not isinstance(deferrable, (NoneType, Deferrable)):
             raise TypeError(

@@ -1,7 +1,7 @@
 """Stub signal module for the extracted ORM.
 
-The real django.dispatch signal framework has been removed. These signals are
-kept as no-op objects so that code connecting to them continues to import.
+These signals are kept as no-op objects so that code importing or connecting
+to them continues to work. Sends are no-ops.
 """
 
 

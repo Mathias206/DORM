@@ -14,11 +14,11 @@ class AppConfig:
     """Class representing a Django application and its configuration."""
 
     def __init__(self, app_name, app_module):
-        # Full Python path to the application e.g. 'django.contrib.admin'.
+        # Full Python path to the application e.g. 'myproject.myapp'.
         self.name = app_name
 
-        # Root module for the application e.g. <module 'django.contrib.admin'
-        # from 'django/contrib/admin/__init__.py'>.
+        # Root module for the application e.g. <module 'myproject.myapp'
+        # from 'myproject/myapp/__init__.py'>.
         self.module = app_module
 
         # Reference to the Apps registry that holds this AppConfig. Set by the
@@ -37,17 +37,17 @@ class AppConfig:
                 "The app label '%s' is not a valid Python identifier." % self.label
             )
 
-        # Human-readable name for the application e.g. "Admin".
+        # Human-readable name for the application e.g. "Myapp".
         if not hasattr(self, "verbose_name"):
             self.verbose_name = self.label.title()
 
         # Filesystem path to the application directory e.g.
-        # '/path/to/django/contrib/admin'.
+        # '/path/to/myproject/myapp'.
         if not hasattr(self, "path"):
             self.path = self._path_from_module(app_module)
 
-        # Module containing models e.g. <module 'django.contrib.admin.models'
-        # from 'django/contrib/admin/models.py'>. Set by import_models().
+        # Module containing models e.g. <module 'myproject.myapp.models'
+        # from 'myproject/myapp/models.py'>. Set by import_models().
         # None if the application doesn't have a models module.
         self.models_module = None
 

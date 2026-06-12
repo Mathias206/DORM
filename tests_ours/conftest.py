@@ -14,4 +14,4 @@ def pytest_configure():
             USE_L10N=s.USE_L10N,
             INSTALLED_APPS=s.INSTALLED_APPS,
         )
-    django.setup(set_prefix=False)
+    django.setup()
