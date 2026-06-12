@@ -91,11 +91,11 @@ def call_command(command_name, *args, **options):
 
     Some examples:
         call_command('migrate')
-        call_command('shell', plain=True)
+        call_command('check')
         call_command('sqlmigrate', 'myapp')
 
-        from django.core.management.commands import flush
-        cmd = flush.Command()
+        from django.core.management.commands import migrate
+        cmd = migrate.Command()
         call_command(cmd, verbosity=0, interactive=False)
         # Do something with cmd ...
     """
@@ -319,7 +319,7 @@ class ManagementUtility:
         elif cwords[0] in subcommands and cwords[0] != "help":
             subcommand_cls = self.fetch_command(cwords[0])
             # special case: add the names of installed apps to options
-            if cwords[0] in ("dumpdata", "sqlmigrate", "sqlsequencereset", "test"):
+            if cwords[0] in ("sqlmigrate",):
                 try:
                     app_configs = apps.get_app_configs()
                     # Get the last part of the dotted path as the app name.
