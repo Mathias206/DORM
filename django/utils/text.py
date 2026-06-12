@@ -3,11 +3,8 @@ import re
 import secrets
 import textwrap
 import unicodedata
-from collections import deque
 from gzip import GzipFile
 from gzip import compress as gzip_compress
-from html import escape
-from html.parser import HTMLParser
 from io import BytesIO
 
 from django.core.exceptions import SuspiciousFileOperation
@@ -96,92 +93,6 @@ def calculate_truncate_chars_length(length, replacement):
     return truncate_len
 
 
-class TruncateHTMLParser(HTMLParser):
-    class TruncationCompleted(Exception):
-        pass
-
-    def __init__(self, *, length, replacement, convert_charrefs=True):
-        super().__init__(convert_charrefs=convert_charrefs)
-        self.tags = deque()
-        self.output = []
-        self.remaining = length
-        self.replacement = replacement
-
-    @cached_property
-    def void_elements(self):
-        from django.utils.html import VOID_ELEMENTS
-
-        return VOID_ELEMENTS
-
-    def handle_startendtag(self, tag, attrs):
-        self.handle_starttag(tag, attrs)
-        if tag not in self.void_elements:
-            self.handle_endtag(tag)
-
-    def handle_starttag(self, tag, attrs):
-        self.output.append(self.get_starttag_text())
-        if tag not in self.void_elements:
-            self.tags.appendleft(tag)
-
-    def handle_endtag(self, tag):
-        if tag not in self.void_elements:
-            self.output.append(f"</{tag}>")
-            # Remove from the stack only if the tag matches the most recently
-            # opened tag (LIFO). This avoids O(n) linear scans for unmatched
-            # end tags if `deque.remove()` would be called.
-            if self.tags and self.tags[0] == tag:
-                self.tags.popleft()
-
-    def handle_data(self, data):
-        data, output = self.process(data)
-        data_len = len(data)
-        if self.remaining < data_len:
-            self.remaining = 0
-            self.output.append(add_truncation_text(output, self.replacement))
-            raise self.TruncationCompleted
-        self.remaining -= data_len
-        self.output.append(output)
-
-    def feed(self, data):
-        try:
-            super().feed(data)
-        except self.TruncationCompleted:
-            self.output.extend([f"</{tag}>" for tag in self.tags])
-            self.tags.clear()
-            self.reset()
-        else:
-            # No data was handled.
-            self.reset()
-
-
-class TruncateCharsHTMLParser(TruncateHTMLParser):
-    def __init__(self, *, length, replacement, convert_charrefs=True):
-        self.length = length
-        self.processed_chars = 0
-        super().__init__(
-            length=calculate_truncate_chars_length(length, replacement),
-            replacement=replacement,
-            convert_charrefs=convert_charrefs,
-        )
-
-    def process(self, data):
-        self.processed_chars += len(data)
-        if (self.processed_chars == self.length) and (
-            sum(len(p) for p in self.output) + len(data) == len(self.rawdata)
-        ):
-            self.output.append(data)
-            raise self.TruncationCompleted
-        output = escape("".join(data[: self.remaining]))
-        return data, output
-
-
-class TruncateWordsHTMLParser(TruncateHTMLParser):
-    def process(self, data):
-        data = re.split(r"(?<=\S)\s+(?=\S)", data)
-        output = escape(" ".join(data[: self.remaining]))
-        return data, output
-
-
 class Truncator(SimpleLazyObject):
     """
     An object used to truncate text, either by characters or words.
@@ -204,11 +115,6 @@ class Truncator(SimpleLazyObject):
             return ""
         text = unicodedata.normalize("NFC", self._wrapped)
 
-        if html:
-            parser = TruncateCharsHTMLParser(length=length, replacement=truncate)
-            parser.feed(text)
-            parser.close()
-            return "".join(parser.output)
         return self._text_chars(length, truncate, text)
 
     def _text_chars(self, length, truncate, text):
@@ -241,11 +147,6 @@ class Truncator(SimpleLazyObject):
         length = int(num)
         if length <= 0:
             return ""
-        if html:
-            parser = TruncateWordsHTMLParser(length=length, replacement=truncate)
-            parser.feed(self._wrapped)
-            parser.close()
-            return "".join(parser.output)
         return self._text_words(length, truncate)
 
     def _text_words(self, length, truncate):
