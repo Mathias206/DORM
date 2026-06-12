@@ -1,5 +1,4 @@
 import inspect
-import types
 from collections import defaultdict
 from itertools import chain
 
@@ -94,9 +93,8 @@ def _check_lazy_references(apps, ignore=None):
     """
     Ensure all lazy (i.e. string) model references have been resolved.
 
-    Lazy references are used in various places throughout Django, primarily in
-    related fields and model signals. Identify those common cases and provide
-    more helpful error messages for them.
+    Lazy references are used throughout Django, primarily in related fields.
+    Identify those common cases and provide more helpful error messages for them.
 
     The ignore parameter is used by StateApps to exclude swappable models from
     this check.
@@ -106,14 +104,6 @@ def _check_lazy_references(apps, ignore=None):
     # Short circuit if there aren't any errors.
     if not pending_models:
         return []
-
-    from django.db.models import signals
-
-    model_signals = {
-        signal: name
-        for name, signal in vars(signals).items()
-        if isinstance(signal, signals.ModelSignal)
-    }
 
     def extract_operation(obj):
         """
@@ -158,32 +148,6 @@ def _check_lazy_references(apps, ignore=None):
         }
         return Error(error_msg % params, obj=keywords["field"], id="fields.E307")
 
-    def signal_connect_error(model_key, func, args, keywords):
-        error_msg = (
-            "%(receiver)s was connected to the '%(signal)s' signal with a "
-            "lazy reference to the sender '%(model)s', but %(model_error)s."
-        )
-        receiver = args[0]
-        # The receiver is either a function or an instance of class
-        # defining a `__call__` method.
-        if isinstance(receiver, types.FunctionType):
-            description = "The function '%s'" % receiver.__name__
-        elif isinstance(receiver, types.MethodType):
-            description = "Bound method '%s.%s'" % (
-                receiver.__self__.__class__.__name__,
-                receiver.__name__,
-            )
-        else:
-            description = "An instance of class '%s'" % receiver.__class__.__name__
-        signal_name = model_signals.get(func.__self__, "unknown")
-        params = {
-            "model": ".".join(model_key),
-            "receiver": description,
-            "signal": signal_name,
-            "model_error": app_model_error(model_key),
-        }
-        return Error(error_msg % params, obj=receiver.__module__, id="signals.E001")
-
     def default_error(model_key, func, args, keywords):
         error_msg = (
             "%(op)s contains a lazy reference to %(model)s, but %(model_error)s."
@@ -201,7 +165,6 @@ def _check_lazy_references(apps, ignore=None):
     known_lazy = {
         ("django.db.models.fields.related", "resolve_related_class"): field_error,
         ("django.db.models.fields.related", "set_managed"): None,
-        ("django.dispatch.dispatcher", "connect"): signal_connect_error,
     }
 
     def build_error(model_key, func, args, keywords):
