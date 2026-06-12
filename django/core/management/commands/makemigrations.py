@@ -305,14 +305,7 @@ class Command(BaseCommand):
                 leaf_migration.operations.extend(migration.operations)
 
                 for dependency in migration.dependencies:
-                    if isinstance(dependency, SwappableTuple):
-                        if settings.AUTH_USER_MODEL == dependency.setting:
-                            leaf_migration.dependencies.append(
-                                ("__setting__", "AUTH_USER_MODEL")
-                            )
-                        else:
-                            leaf_migration.dependencies.append(dependency)
-                    elif dependency[0] != migration.app_label:
+                    if dependency[0] != migration.app_label:
                         leaf_migration.dependencies.append(dependency)
             # Optimize migration.
             optimizer = MigrationOptimizer()

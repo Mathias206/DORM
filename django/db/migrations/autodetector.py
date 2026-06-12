@@ -5,7 +5,6 @@ from enum import Enum
 from graphlib import TopologicalSorter
 from itertools import chain
 
-from django.conf import settings
 from django.db import models
 from django.db.migrations import operations
 from django.db.migrations.migration import Migration
@@ -567,12 +566,7 @@ class MigrationAutodetector:
                 for base in model_state.bases
             }
             string_version = "%s.%s" % (item[0], item[1])
-            if (
-                model_state.options.get("swappable")
-                or "AbstractUser" in base_names
-                or "AbstractBaseUser" in base_names
-                or settings.AUTH_USER_MODEL.lower() == string_version.lower()
-            ):
+            if model_state.options.get("swappable"):
                 return ("___" + item[0], "___" + item[1])
         except LookupError:
             pass

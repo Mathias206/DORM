@@ -52,14 +52,6 @@ def check_for_language(x):
     return True
 
 
-def get_language_from_request(request, check_path=False):
-    return settings.LANGUAGE_CODE
-
-
-def get_language_from_path(request):
-    return None
-
-
 def get_supported_language_variant(lang_code, strict=False):
     if lang_code and lang_code.lower() == settings.LANGUAGE_CODE.lower():
         return lang_code

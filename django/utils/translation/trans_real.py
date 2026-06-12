@@ -3,7 +3,6 @@
 import functools
 import gettext as gettext_module
 import os
-import re
 import sys
 import warnings
 
@@ -13,9 +12,6 @@ from django.apps import apps
 from django.conf import settings
 from django.conf.locale import LANG_INFO
 from django.core.exceptions import AppRegistryNotReady
-from django.core.signals import setting_changed
-from django.dispatch import receiver
-from django.utils.regex_helper import _lazy_re_compile
 from django.utils.safestring import SafeData, mark_safe
 
 from . import to_language, to_locale
@@ -30,44 +26,6 @@ _default = None
 
 # magic gettext number to separate context from message
 CONTEXT_SEPARATOR = "\x04"
-
-# Maximum number of characters that will be parsed from the Accept-Language
-# header or cookie to prevent possible denial of service or memory exhaustion
-# attacks. About 10x longer than the longest value shown on MDN’s
-# Accept-Language page.
-LANGUAGE_CODE_MAX_LENGTH = 500
-
-# Format of Accept-Language header values. From RFC 9110 Sections 12.4.2 and
-# 12.5.4, and RFC 5646 Section 2.1.
-accept_language_re = _lazy_re_compile(
-    r"""
-        # "en", "en-au", "x-y-z", "es-419", "*"
-        ([A-Za-z]{1,8}(?:-[A-Za-z0-9]{1,8})*|\*)
-        # Optional "q=1.00", "q=0.8"
-        (?:\s*;\s*q=(0(?:\.[0-9]{,3})?|1(?:\.0{,3})?))?
-        # Multiple accepts per header.
-        (?:\s*,\s*|$)
-    """,
-    re.VERBOSE,
-)
-
-language_code_re = _lazy_re_compile(
-    r"^[a-z]{1,8}(?:-[a-z0-9]{1,8})*(?:@[a-z0-9]{1,20})?$", re.IGNORECASE
-)
-
-language_code_prefix_re = _lazy_re_compile(r"^/(\w+([@-]\w+){0,2})(/|$)")
-
-
-@receiver(setting_changed)
-def reset_cache(*, setting, **kwargs):
-    """
-    Reset global state when LANGUAGES setting has been changed, as some
-    languages should no longer be accepted.
-    """
-    if setting in ("LANGUAGES", "LANGUAGE_CODE"):
-        check_for_language.cache_clear()
-        get_languages.cache_clear()
-        get_supported_language_variant.cache_clear()
 
 
 class TranslationCatalog:
@@ -544,114 +502,9 @@ def get_supported_language_variant(lang_code, strict=False):
     raise LookupError(lang_code)
 
 
-def get_language_from_path(path, strict=False):
-    """
-    Return the language code if there's a valid language code found in `path`.
-
-    If `strict` is False (the default), look for a country-specific variant
-    when neither the language code nor its generic variant is found.
-    """
-    regex_match = language_code_prefix_re.match(path)
-    if not regex_match:
-        return None
-    lang_code = regex_match[1]
-    try:
-        return get_supported_language_variant(lang_code, strict=strict)
-    except LookupError:
-        return None
 
 
-def get_language_from_request(request, check_path=False):
-    """
-    Analyze the request to find what language the user wants the system to
-    show. Only languages listed in settings.LANGUAGES are taken into account.
-    If the user requests a sublanguage where we have a main language, we send
-    out the main language.
-
-    If check_path is True, the URL path prefix will be checked for a language
-    code, otherwise this is skipped for backwards compatibility.
-    """
-    if check_path:
-        lang_code = get_language_from_path(request.path_info)
-        if lang_code is not None:
-            return lang_code
-
-    lang_code = request.COOKIES.get(settings.LANGUAGE_COOKIE_NAME)
-    if (
-        lang_code is not None
-        and lang_code in get_languages()
-        and check_for_language(lang_code)
-    ):
-        return lang_code
-
-    try:
-        return get_supported_language_variant(lang_code)
-    except LookupError:
-        pass
-
-    accept = request.META.get("HTTP_ACCEPT_LANGUAGE", "")
-    for accept_lang, unused in parse_accept_lang_header(accept):
-        if accept_lang == "*":
-            break
-
-        if not language_code_re.search(accept_lang):
-            continue
-
-        try:
-            return get_supported_language_variant(accept_lang)
-        except LookupError:
-            continue
-
-    try:
-        return get_supported_language_variant(settings.LANGUAGE_CODE)
-    except LookupError:
-        return settings.LANGUAGE_CODE
 
 
-@functools.lru_cache(maxsize=1000)
-def _parse_accept_lang_header(lang_string):
-    """
-    Parse the lang_string, which is the body of an HTTP Accept-Language
-    header, and return a tuple of (lang, q-value), ordered by 'q' values.
-
-    Return an empty tuple if there are any format errors in lang_string.
-    """
-    result = []
-    pieces = accept_language_re.split(lang_string.lower())
-    if pieces[-1]:
-        return ()
-    for i in range(0, len(pieces) - 1, 3):
-        first, lang, priority = pieces[i : i + 3]
-        if first:
-            return ()
-        if priority:
-            priority = float(priority)
-        else:
-            priority = 1.0
-        result.append((lang, priority))
-    result.sort(key=lambda k: k[1], reverse=True)
-    return tuple(result)
 
 
-def parse_accept_lang_header(lang_string):
-    """
-    Parse the value of the Accept-Language header up to a maximum length.
-
-    The value of the header is truncated to a maximum length to avoid potential
-    denial of service and memory exhaustion attacks. Excessive memory could be
-    used if the raw value is very large as it would be cached due to the use of
-    functools.lru_cache() to avoid repetitive parsing of common header values.
-    """
-    # If the header value doesn't exceed the maximum allowed length, parse it.
-    if len(lang_string) <= LANGUAGE_CODE_MAX_LENGTH:
-        return _parse_accept_lang_header(lang_string)
-
-    # If there is at least one comma in the value, parse up to the last comma
-    # before the max length, skipping any truncated parts at the end of the
-    # header value.
-    if (index := lang_string.rfind(",", 0, LANGUAGE_CODE_MAX_LENGTH)) > 0:
-        return _parse_accept_lang_header(lang_string[:index])
-
-    # Don't attempt to parse if there is only one language-range value which is
-    # longer than the maximum allowed length and so truncated.
-    return ()

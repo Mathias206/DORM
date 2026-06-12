@@ -14,7 +14,6 @@ __all__ = [
     "override",
     "deactivate_all",
     "get_language",
-    "get_language_from_request",
     "get_language_info",
     "get_language_bidi",
     "check_for_language",

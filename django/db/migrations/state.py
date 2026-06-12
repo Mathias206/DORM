@@ -7,7 +7,6 @@ from functools import partial
 from django.apps import AppConfig
 from django.apps.registry import Apps
 from django.apps.registry import apps as global_apps
-from django.conf import settings
 from django.core.exceptions import FieldDoesNotExist
 from django.db import models
 from django.db.migrations.utils import field_is_referenced, get_references
@@ -655,9 +654,7 @@ class StateApps(Apps):
         # There shouldn't be any operations pending at this point.
         from django.core.checks.model_checks import _check_lazy_references
 
-        ignore = (
-            {make_model_tuple(settings.AUTH_USER_MODEL)} if ignore_swappable else set()
-        )
+        ignore = set()
         errors = _check_lazy_references(self, ignore=ignore)
         if errors:
             raise ValueError("\n".join(error.msg for error in errors))

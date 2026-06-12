@@ -2,7 +2,6 @@ import os
 import shutil
 
 from django.apps import apps
-from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.core.management.utils import run_formatters
 from django.db import migrations
@@ -142,12 +141,7 @@ class Command(BaseCommand):
         for smigration in migrations_to_squash:
             operations.extend(smigration.operations)
             for dependency in smigration.dependencies:
-                if isinstance(dependency, SwappableTuple):
-                    if settings.AUTH_USER_MODEL == dependency.setting:
-                        dependencies.add(("__setting__", "AUTH_USER_MODEL"))
-                    else:
-                        dependencies.add(dependency)
-                elif dependency[0] != smigration.app_label or first_migration:
+                if dependency[0] != smigration.app_label or first_migration:
                     dependencies.add(dependency)
             first_migration = False
 

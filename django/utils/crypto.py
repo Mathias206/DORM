@@ -5,61 +5,8 @@ Django's standard crypto functions and utilities.
 import hashlib
 import hmac
 import secrets
-import warnings
 
-from django.conf import settings
-from django.utils.deprecation import RemovedInDjango70Warning
 from django.utils.encoding import force_bytes
-from django.utils.warnings import django_file_prefixes
-
-
-class InvalidAlgorithm(ValueError):
-    """Algorithm is not supported by hashlib."""
-
-    pass
-
-
-# RemovedInDjango70Warning: algorithm="sha256"
-def salted_hmac(key_salt, value, secret=None, *, algorithm=None):
-    """
-    Return the HMAC of 'value', using a key generated from key_salt and a
-    secret (which defaults to settings.SECRET_KEY). Default algorithm is SHA1,
-    but any algorithm name supported by hashlib can be passed.
-
-    Removed in Django70Warning: The default algorithm will change to SHA256
-    in Django 7.0, so provide an explicit algorithm to silence the warning.
-
-    A different key_salt should be passed in for every application of HMAC.
-    """
-    if algorithm is None:
-        warnings.warn(
-            "The default argument for algorithm in salted_hmac() will change "
-            "from 'sha1' to 'sha256' in Django 7.0. Pass an explicit "
-            "algorithm to silence this warning.",
-            category=RemovedInDjango70Warning,
-            skip_file_prefixes=django_file_prefixes(),
-        )
-        algorithm = "sha1"
-    if secret is None:
-        secret = settings.SECRET_KEY
-
-    key_salt = force_bytes(key_salt)
-    secret = force_bytes(secret)
-    try:
-        hasher = getattr(hashlib, algorithm)
-    except AttributeError as e:
-        raise InvalidAlgorithm(
-            "%r is not an algorithm accepted by the hashlib module." % algorithm
-        ) from e
-    # We need to generate a derived key from our base key. We can do this by
-    # passing the key_salt and our base key through a pseudo-random function.
-    key = hasher(key_salt + secret).digest()
-    # If len(key_salt + secret) > block size of the hash algorithm, the above
-    # line is redundant and could be replaced by key = key_salt + secret, since
-    # the hmac module does the same thing for keys longer than the block size.
-    # However, we need to ensure that we *always* do this.
-    return hmac.new(key, msg=force_bytes(value), digestmod=hasher)
-
 
 RANDOM_STRING_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
