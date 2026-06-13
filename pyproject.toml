@@ -14,7 +14,7 @@ dependencies = [
     "tzdata; sys_platform == 'win32'",
 ]
 authors = [
-  {name = "Django Software Foundation", email = "foundation@djangoproject.com"},
+  {name = "Mathias Fernandes", email = "mathias.silva.fernandes@gmail.com"},
 ]
 description = "Django's ORM and migration system, extracted for standalone use."
 readme = "README.rst"
@@ -34,11 +34,11 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://www.djangoproject.com/"
+Homepage = "https://github.com/Mathias206/DORM"
 Documentation = "https://docs.djangoproject.com/"
-"Release notes" = "https://docs.djangoproject.com/en/stable/releases/"
+"Release notes" = "https://github.com/Mathias206/DORM"
 Funding = "https://www.djangoproject.com/fundraising/"
-Source = "https://github.com/django/django"
+Source = "https://github.com/Mathias206/DORM"
 Tracker = "https://code.djangoproject.com/"
 
 [tool.black]
