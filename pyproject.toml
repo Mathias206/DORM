@@ -48,7 +48,7 @@ force-exclude = "tests/test_runner_apps/tagged/tests_syntax_error.py"
 [tool.isort]
 profile = "black"
 default_section = "THIRDPARTY"
-known_first_party = "django"
+known_first_party = "dorm"
 
 
 [tool.setuptools.packages.find]
