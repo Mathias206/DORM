@@ -13,6 +13,7 @@ from weakref import ref as weak_ref
 from asgiref.sync import sync_to_async
 
 import django
+from django.db.async_orm.session import AsyncSession
 from django.conf import settings
 from django.core import exceptions
 from django.db import (
@@ -30,7 +31,14 @@ from django.db.models.expressions import Case, DatabaseDefault, F, OrderBy, Valu
 from django.db.models.fetch_modes import FETCH_ONE
 from django.db.models.functions import Cast, Trunc
 from django.db.models.query_utils import PROHIBITED_FILTER_KWARGS, FilteredRelation, Q
-from django.db.models.sql.constants import GET_ITERATOR_CHUNK_SIZE, ROW_COUNT
+from django.db.models.sql.constants import (
+    CURSOR,
+    GET_ITERATOR_CHUNK_SIZE,
+    MULTI,
+    NO_RESULTS,
+    ROW_COUNT,
+    SINGLE,
+)
 from django.db.models.utils import (
     AltersData,
     create_namedtuple_class,
@@ -50,13 +58,33 @@ REPR_OUTPUT_SIZE = 20
 DEFAULT_FETCH_MODE = FETCH_ONE
 
 
+def _pop_session(args, kwargs):
+    """Extract the explicit AsyncSession from positional or keyword args."""
+    session = kwargs.pop("session", None)
+    if args and isinstance(args[0], AsyncSession):
+        if session is not None:
+            raise TypeError("Session given as both positional and keyword argument")
+        session = args[0]
+        args = args[1:]
+    if session is None:
+        raise TypeError("Async ORM methods require an explicit session argument")
+    return session, args, kwargs
+
+
 class BaseIterable:
     def __init__(
-        self, queryset, chunked_fetch=False, chunk_size=GET_ITERATOR_CHUNK_SIZE
+        self,
+        queryset,
+        chunked_fetch=False,
+        chunk_size=GET_ITERATOR_CHUNK_SIZE,
+        results=None,
+        compiler=None,
     ):
         self.queryset = queryset
         self.chunked_fetch = chunked_fetch
         self.chunk_size = chunk_size
+        self.results = results
+        self.compiler = compiler
 
     async def _async_generator(self):
         # Generators don't actually start running until the first time you call
@@ -92,13 +120,20 @@ class ModelIterable(BaseIterable):
     def __iter__(self):
         queryset = self.queryset
         db = queryset.db
-        compiler = queryset.query.get_compiler(using=db)
+        if self.compiler is not None:
+            compiler = self.compiler
+        else:
+            compiler = queryset.query.get_compiler(using=db)
         fetch_mode = queryset._fetch_mode
-        # Execute the query. This will also fill compiler.select, klass_info,
+        # Execute the query unless results were supplied (e.g. from an async
+        # execution path). This will also fill compiler.select, klass_info,
         # and annotations.
-        results = compiler.execute_sql(
-            chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size
-        )
+        if self.results is not None:
+            results = self.results
+        else:
+            results = compiler.execute_sql(
+                chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size
+            )
         select, klass_info, annotation_col_map = (
             compiler.select,
             compiler.klass_info,
@@ -228,7 +263,10 @@ class ValuesIterable(BaseIterable):
     def __iter__(self):
         queryset = self.queryset
         query = queryset.query
-        compiler = query.get_compiler(queryset.db)
+        if self.compiler is not None:
+            compiler = self.compiler
+        else:
+            compiler = query.get_compiler(queryset.db)
 
         if query.selected:
             names = list(query.selected)
@@ -241,7 +279,9 @@ class ValuesIterable(BaseIterable):
             ]
         indexes = range(len(names))
         for row in compiler.results_iter(
-            chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size
+            results=self.results,
+            chunked_fetch=self.chunked_fetch,
+            chunk_size=self.chunk_size,
         ):
             yield {names[i]: row[i] for i in indexes}
 
@@ -255,8 +295,12 @@ class ValuesListIterable(BaseIterable):
     def __iter__(self):
         queryset = self.queryset
         query = queryset.query
-        compiler = query.get_compiler(queryset.db)
+        if self.compiler is not None:
+            compiler = self.compiler
+        else:
+            compiler = query.get_compiler(queryset.db)
         return compiler.results_iter(
+            results=self.results,
             tuple_expected=True,
             chunked_fetch=self.chunked_fetch,
             chunk_size=self.chunk_size,
@@ -294,9 +338,14 @@ class FlatValuesListIterable(BaseIterable):
 
     def __iter__(self):
         queryset = self.queryset
-        compiler = queryset.query.get_compiler(queryset.db)
+        if self.compiler is not None:
+            compiler = self.compiler
+        else:
+            compiler = queryset.query.get_compiler(queryset.db)
         for row in compiler.results_iter(
-            chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size
+            results=self.results,
+            chunked_fetch=self.chunked_fetch,
+            chunk_size=self.chunk_size,
         ):
             yield row[0]
 
@@ -577,41 +626,29 @@ class QuerySet(AltersData):
         )
         return self._iterator(use_chunked_fetch, chunk_size)
 
-    async def aiterator(self, chunk_size=2000):
+    async def aiterator(self, session, chunk_size=2000):
         """
         An asynchronous iterator over the results from applying this QuerySet
         to the database.
         """
         if chunk_size <= 0:
             raise ValueError("Chunk size must be strictly positive.")
-        use_chunked_fetch = not connections[self.db].settings_dict.get(
-            "DISABLE_SERVER_SIDE_CURSORS"
-        )
-        iterable = self._iterable_class(
-            self, chunked_fetch=use_chunked_fetch, chunk_size=chunk_size
-        )
         if self._prefetch_related_lookups:
-            results = []
+            raise NotImplementedError(
+                "prefetch_related() is not yet supported in the async QuerySet path."
+            )
+        # For now, materialize the full result set. True server-side async
+        # cursors can be added later.
+        compiler = self.query.get_compiler(using=self.db)
+        chunks = await compiler.execute_sql_async(MULTI, session=session)
+        iterable = self._iterable_class(self, results=chunks, compiler=compiler)
+        for item in iterable:
+            yield item
 
-            async for item in iterable:
-                results.append(item)
-                if len(results) >= chunk_size:
-                    await aprefetch_related_objects(
-                        results, *self._prefetch_related_lookups
-                    )
-                    for result in results:
-                        yield result
-                    results.clear()
-
-            if results:
-                await aprefetch_related_objects(
-                    results, *self._prefetch_related_lookups
-                )
-                for result in results:
-                    yield result
-        else:
-            async for item in iterable:
-                yield item
+    async def aall(self, session):
+        """Async iterator over all matching results."""
+        async for item in self.aiterator(session, chunk_size=2000):
+            yield item
 
     def aggregate(self, *args, **kwargs):
         """
@@ -654,8 +691,26 @@ class QuerySet(AltersData):
 
         return self.query.get_count(using=self.db)
 
-    async def acount(self):
-        return await sync_to_async(self.count)()
+    async def acount(self, session):
+        if self._result_cache is not None:
+            return len(self._result_cache)
+        inner = self.query.clone()
+        inner.subquery = True
+        inner.clear_select_clause()
+        inner.select = [self.model._meta.pk.get_col(inner.get_initial_alias())]
+        from django.db.models.aggregates import Count
+        from django.db.models.sql.subqueries import AggregateQuery
+
+        agg_query = AggregateQuery(self.model, inner)
+        count_expr = Count("*")
+        count_expr = count_expr.resolve_expression(
+            agg_query, allow_joins=True, reuse=None, summarize=True
+        )
+        agg_query.annotations = {"__count": count_expr}
+        agg_query.set_annotation_mask(["__count"])
+        compiler = agg_query.get_compiler(self.db)
+        row = await compiler.execute_sql_async(SINGLE, session=session)
+        return row[0]
 
     def get(self, *args, **kwargs):
         """
@@ -692,8 +747,37 @@ class QuerySet(AltersData):
             )
         )
 
-    async def aget(self, *args, **kwargs):
-        return await sync_to_async(self.get)(*args, **kwargs)
+    async def aget(self, session, *args, **kwargs):
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.aget(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        await clone._fetch_all_async(session)
+        num = len(clone._result_cache)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+            raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+        raise self.model.MultipleObjectsReturned(
+            "aget() returned more than one %s -- it returned %s!"
+            % (
+                self.model._meta.object_name,
+                num if not limit or num < limit else "more than %s" % (limit - 1),
+            )
+        )
 
     def create(self, **kwargs):
         """
@@ -1190,8 +1274,17 @@ class QuerySet(AltersData):
         for obj in queryset[:1]:
             return obj
 
-    async def afirst(self):
-        return await sync_to_async(self.first)()
+    async def afirst(self, session):
+        if self.ordered or not self.query.default_ordering:
+            queryset = self
+        else:
+            self._check_ordering_first_last_queryset_aggregation(method="first")
+            queryset = self.order_by("pk")
+        queryset = queryset[:1]
+        await queryset._fetch_all_async(session)
+        for obj in queryset._result_cache:
+            return obj
+        return None
 
     def last(self):
         """Return the last object of a query or None if no match is found."""
@@ -1203,8 +1296,17 @@ class QuerySet(AltersData):
         for obj in queryset[:1]:
             return obj
 
-    async def alast(self):
-        return await sync_to_async(self.last)()
+    async def alast(self, session):
+        if self.ordered or not self.query.default_ordering:
+            queryset = self.reverse()
+        else:
+            self._check_ordering_first_last_queryset_aggregation(method="last")
+            queryset = self.order_by("-pk")
+        queryset = queryset[:1]
+        await queryset._fetch_all_async(session)
+        for obj in queryset._result_cache:
+            return obj
+        return None
 
     def in_bulk(self, id_list=None, *, field_name="pk"):
         """
@@ -1436,8 +1538,22 @@ class QuerySet(AltersData):
             return self.query.has_results(using=self.db)
         return bool(self._result_cache)
 
-    async def aexists(self):
-        return await sync_to_async(self.exists)()
+    async def aexists(self, session):
+        if self._result_cache is not None:
+            return bool(self._result_cache)
+        q = self.query.clone()
+        if not (q.distinct and q.is_sliced):
+            if q.group_by is True:
+                q.add_fields(
+                    (f.attname for f in self.model._meta.concrete_fields), False
+                )
+            q.clear_select_clause()
+            q.select = [self.model._meta.pk.get_col(q.get_initial_alias())]
+            q.default_cols = False
+        q.set_limits(low=0, high=1)
+        compiler = q.get_compiler(self.db)
+        row = await compiler.execute_sql_async(SINGLE, session=session)
+        return row is not None
 
     def contains(self, obj):
         """
@@ -2240,6 +2356,18 @@ class QuerySet(AltersData):
             self._result_cache = list(self._iterable_class(self))
         if self._prefetch_related_lookups and not self._prefetch_done:
             self._prefetch_related_objects()
+
+    async def _fetch_all_async(self, session):
+        if self._prefetch_related_lookups:
+            raise NotImplementedError(
+                "prefetch_related() is not yet supported in the async QuerySet path."
+            )
+        if self._result_cache is None:
+            compiler = self.query.get_compiler(using=self.db)
+            chunks = await compiler.execute_sql_async(MULTI, session=session)
+            self._result_cache = list(
+                self._iterable_class(self, results=chunks, compiler=compiler)
+            )
 
     def _next_is_sticky(self):
         """

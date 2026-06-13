@@ -1,22 +1,59 @@
-"""Phase 0/1 tests for the async-native ORM backend and compiler."""
+"""Phase 0/1/2 tests for the async-native ORM backend, compiler, and reads."""
+
+from datetime import datetime
 
 import pytest
+from django.db.models.sql.constants import MULTI, ROW_COUNT
 from django.db.models.sql.subqueries import DeleteQuery, InsertQuery, UpdateQuery
 from django.db.models.query_utils import Q
 
 from django.db.async_orm import AsyncDatabase
-from django.db.models.sql.constants import MULTI, ROW_COUNT
+from tests_ours.models import Author, Book
 
-from .models import Author
+
+def _db():
+    return AsyncDatabase("sqlite+aiosqlite:///:memory:")
+
+
+async def _create_author_table(session):
+    await session.execute(
+        '''
+        CREATE TABLE "tests_ours_author" (
+            "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+            "name" varchar(200) NOT NULL,
+            "email" varchar(254) NOT NULL UNIQUE,
+            "created_at" datetime NOT NULL
+        )
+        '''
+    )
+
+
+async def _create_book_table(session):
+    await session.execute(
+        '''
+        CREATE TABLE "tests_ours_book" (
+            "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+            "title" varchar(200) NOT NULL,
+            "author_id" bigint NOT NULL REFERENCES "tests_ours_author" ("id"),
+            "published" date NULL
+        )
+        '''
+    )
+
+
+async def _insert_author(session, name, email):
+    result = await session.execute(
+        '''INSERT INTO tests_ours_author (name, email, created_at)
+           VALUES (?, ?, ?)''',
+        (name, email, datetime.utcnow().isoformat()),
+    )
+    return result.lastrowid
 
 
 @pytest.mark.asyncio
 async def test_async_session_roundtrip():
-    db = AsyncDatabase("sqlite+aiosqlite:///:memory:")
-    async with db.session() as session:
-        await session.execute(
-            "CREATE TABLE demo (id INTEGER PRIMARY KEY, name TEXT)"
-        )
+    async with _db().session() as session:
+        await session.execute("CREATE TABLE demo (id INTEGER PRIMARY KEY, name TEXT)")
         await session.execute("INSERT INTO demo (name) VALUES (?)", ("Alice",))
         result = await session.execute(
             "SELECT * FROM demo WHERE name = ?", ("Alice",)
@@ -27,8 +64,7 @@ async def test_async_session_roundtrip():
 
 @pytest.mark.asyncio
 async def test_async_session_lastrowid_and_fetchall():
-    db = AsyncDatabase("sqlite+aiosqlite:///:memory:")
-    async with db.session() as session:
+    async with _db().session() as session:
         await session.execute(
             "CREATE TABLE items (id INTEGER PRIMARY KEY, value INTEGER)"
         )
@@ -44,26 +80,10 @@ async def test_async_session_lastrowid_and_fetchall():
 
 @pytest.mark.asyncio
 async def test_async_compiler_select():
-    db = AsyncDatabase("sqlite+aiosqlite:///:memory:")
-    async with db.session() as session:
-        await session.execute(
-            """
-            CREATE TABLE tests_ours_author (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name VARCHAR(200) NOT NULL,
-                email VARCHAR(254) NOT NULL,
-                created_at DATETIME NOT NULL
-            )
-            """
-        )
-        await session.execute(
-            "INSERT INTO tests_ours_author (name, email, created_at) VALUES (?, ?, ?)",
-            ("Alice", "alice@example.com", "2024-01-01 00:00:00"),
-        )
-        await session.execute(
-            "INSERT INTO tests_ours_author (name, email, created_at) VALUES (?, ?, ?)",
-            ("Bob", "bob@example.com", "2024-01-01 00:00:00"),
-        )
+    async with _db().session() as session:
+        await _create_author_table(session)
+        await _insert_author(session, "Alice", "alice@example.com")
+        await _insert_author(session, "Bob", "bob@example.com")
 
         compiler = Author.objects.all().query.get_compiler(using="default")
         chunks = await compiler.execute_sql_async(MULTI, session=session)
@@ -74,18 +94,8 @@ async def test_async_compiler_select():
 
 @pytest.mark.asyncio
 async def test_async_compiler_insert_update_delete():
-    db = AsyncDatabase("sqlite+aiosqlite:///:memory:")
-    async with db.session() as session:
-        await session.execute(
-            """
-            CREATE TABLE tests_ours_author (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name VARCHAR(200) NOT NULL,
-                email VARCHAR(254) NOT NULL,
-                created_at DATETIME NOT NULL
-            )
-            """
-        )
+    async with _db().session() as session:
+        await _create_author_table(session)
 
         # INSERT
         query = InsertQuery(Author)
@@ -124,3 +134,95 @@ async def test_async_compiler_insert_update_delete():
         chunks = await compiler.execute_sql_async(MULTI, session=session)
         rows = list(compiler.results_iter(chunks))
         assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_async_queryset_get():
+    async with _db().session() as session:
+        await _create_author_table(session)
+        pk = await _insert_author(session, "Alice", "alice@example.com")
+
+        author = await Author.objects.aget(session, pk=pk)
+        assert author.name == "Alice"
+
+        with pytest.raises(Author.DoesNotExist):
+            await Author.objects.aget(session, pk=999)
+
+
+@pytest.mark.asyncio
+async def test_async_queryset_first_last_all():
+    async with _db().session() as session:
+        await _create_author_table(session)
+        await _insert_author(session, "Alice", "alice@example.com")
+        await _insert_author(session, "Bob", "bob@example.com")
+        await _insert_author(session, "Carol", "carol@example.com")
+
+        first = await Author.objects.afirst(session)
+        assert first.name == "Alice"
+
+        last = await Author.objects.alast(session)
+        # Default ordering is by pk ascending, so reverse -> Carol.
+        assert last.name == "Carol"
+
+        names = [a.name async for a in Author.objects.aall(session)]
+        assert names == ["Alice", "Bob", "Carol"]
+
+        filtered = [a.name async for a in Author.objects.filter(name__startswith="A").aall(session)]
+        assert filtered == ["Alice"]
+
+
+@pytest.mark.asyncio
+async def test_async_queryset_count_exists():
+    async with _db().session() as session:
+        await _create_author_table(session)
+        await _insert_author(session, "Alice", "alice@example.com")
+        await _insert_author(session, "Bob", "bob@example.com")
+
+        assert await Author.objects.acount(session) == 2
+        assert await Author.objects.filter(name="Alice").aexists(session) is True
+        assert await Author.objects.filter(name="Zoe").aexists(session) is False
+
+
+@pytest.mark.asyncio
+async def test_async_queryset_values_and_values_list():
+    async with _db().session() as session:
+        await _create_author_table(session)
+        await _insert_author(session, "Alice", "alice@example.com")
+
+        rows = [row async for row in Author.objects.values("name", "email").aall(session)]
+        assert rows == [{"name": "Alice", "email": "alice@example.com"}]
+
+        rows = [
+            row async for row in Author.objects.values_list("name", "email").aall(session)
+        ]
+        assert rows == [("Alice", "alice@example.com")]
+
+        names = [n async for n in Author.objects.values_list("name", flat=True).aall(session)]
+        assert names == ["Alice"]
+
+
+@pytest.mark.asyncio
+async def test_async_queryset_select_related():
+    async with _db().session() as session:
+        await _create_author_table(session)
+        await _create_book_table(session)
+        author_pk = await _insert_author(session, "Alice", "alice@example.com")
+        await session.execute(
+            "INSERT INTO tests_ours_book (title, author_id, published) VALUES (?, ?, ?)",
+            ("Deep Work", author_pk, None),
+        )
+
+        book = await Book.objects.select_related("author").aget(session, title="Deep Work")
+        assert book.title == "Deep Work"
+        assert book.author.name == "Alice"
+
+
+@pytest.mark.asyncio
+async def test_async_queryset_aiterator():
+    async with _db().session() as session:
+        await _create_author_table(session)
+        for i in range(5):
+            await _insert_author(session, f"Author {i}", f"a{i}@example.com")
+
+        names = [a.name async for a in Author.objects.aiterator(session)]
+        assert names == [f"Author {i}" for i in range(5)]

@@ -798,6 +798,7 @@ class ManagerTest(SimpleTestCase):
         "intersection",
         "difference",
         "aaggregate",
+        "aall",
         "abulk_create",
         "abulk_update",
         "acontains",

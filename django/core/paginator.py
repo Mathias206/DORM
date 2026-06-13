@@ -265,7 +265,15 @@ class AsyncPaginator(BasePaginator):
         ):
             count = await c()
         else:
-            count = len(self.object_list)
+            # The object_list may be a QuerySet whose async count() requires
+            # an explicit AsyncSession. Fall back to the synchronous count()
+            # (or __len__) on a thread to avoid SynchronousOnlyOperation in
+            # an async context.
+            c = getattr(self.object_list, "count", None)
+            if callable(c) and not inspect.isbuiltin(c) and method_has_no_args(c):
+                count = await sync_to_async(c)()
+            else:
+                count = await sync_to_async(len)(self.object_list)
 
         self._cache_acount = count
         return count
