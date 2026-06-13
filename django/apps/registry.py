@@ -36,6 +36,10 @@ class Apps:
         # Mapping of labels to AppConfig instances for installed apps.
         self.app_configs = {}
 
+        # Stack of app_configs. Used to store the current state in
+        # set_available_apps and set_installed_apps.
+        self.stored_app_configs = []
+
         # Whether the registry is populated.
         self.apps_ready = self.models_ready = self.ready = False
         # Lock for thread-safe population.
@@ -238,6 +242,50 @@ class Apps:
         """
         self.check_apps_ready()
         return any(ac.name == app_name for ac in self.app_configs.values())
+
+    def set_available_apps(self, available):
+        """Restrict the set of installed apps used by get_app_config[s]."""
+        available = set(available)
+        installed = {app_config.name for app_config in self.get_app_configs()}
+        if not available.issubset(installed):
+            raise ValueError(
+                "Available apps isn't a subset of installed apps, extra apps: %s"
+                % ", ".join(available - installed)
+            )
+
+        self.stored_app_configs.append(self.app_configs)
+        self.app_configs = {
+            label: app_config
+            for label, app_config in self.app_configs.items()
+            if app_config.name in available
+        }
+        self.clear_cache()
+
+    def unset_available_apps(self):
+        """Cancel a previous call to set_available_apps()."""
+        self.app_configs = self.stored_app_configs.pop()
+        self.clear_cache()
+
+    def set_installed_apps(self, installed):
+        """
+        Enable a different set of installed apps for get_app_config[s].
+
+        This method is used by Django's test runner to register test apps
+        dynamically.
+        """
+        if not self.ready:
+            raise AppRegistryNotReady("App registry isn't ready yet.")
+        self.stored_app_configs.append(self.app_configs)
+        self.app_configs = {}
+        self.apps_ready = self.models_ready = self.loading = self.ready = False
+        self.clear_cache()
+        self.populate(installed)
+
+    def unset_installed_apps(self):
+        """Cancel a previous call to set_installed_apps()."""
+        self.app_configs = self.stored_app_configs.pop()
+        self.apps_ready = self.models_ready = self.ready = True
+        self.clear_cache()
 
     def get_containing_app_config(self, object_name):
         """
