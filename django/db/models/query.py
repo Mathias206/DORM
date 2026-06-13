@@ -407,6 +407,12 @@ class QuerySet(AltersData):
             self._iterable_class = ValuesIterable
         self._query = value
 
+    def _async_compiler(self, session):
+        """Return a compiler bound to the async session's backend connection."""
+        compiler = self.query.get_compiler(connection=session.connection)
+        compiler.using = self.db
+        return compiler
+
     def as_manager(cls):
         # Address the circular dependency between `Queryset` and `Manager`.
         from django.db.models.manager import Manager
@@ -639,7 +645,7 @@ class QuerySet(AltersData):
             )
         # For now, materialize the full result set. True server-side async
         # cursors can be added later.
-        compiler = self.query.get_compiler(using=self.db)
+        compiler = self._async_compiler(session)
         chunks = await compiler.execute_sql_async(MULTI, session=session)
         iterable = self._iterable_class(self, results=chunks, compiler=compiler)
         for item in iterable:
@@ -708,7 +714,8 @@ class QuerySet(AltersData):
         )
         agg_query.annotations = {"__count": count_expr}
         agg_query.set_annotation_mask(["__count"])
-        compiler = agg_query.get_compiler(self.db)
+        compiler = agg_query.get_compiler(connection=session.connection)
+        compiler.using = self.db
         row = await compiler.execute_sql_async(SINGLE, session=session)
         return row[0]
 
@@ -1584,13 +1591,11 @@ class QuerySet(AltersData):
 
     async def _raw_delete_async(self, session, using=None):
         """Async version of _raw_delete."""
-        if using is None:
-            using = self.db
         query = self.query.clone()
         query.__class__ = sql.DeleteQuery
-        return await query.get_compiler(using).execute_sql_async(
-            ROW_COUNT, session=session
-        )
+        compiler = query.get_compiler(connection=session.connection)
+        compiler.using = self.db
+        return await compiler.execute_sql_async(ROW_COUNT, session=session)
 
     _raw_delete_async.alters_data = True
 
@@ -1670,9 +1675,9 @@ class QuerySet(AltersData):
 
         query.clear_select_clause()
         async with session.atomic():
-            rows = await query.get_compiler(self.db).execute_sql_async(
-                ROW_COUNT, session=session
-            )
+            compiler = query.get_compiler(connection=session.connection)
+            compiler.using = self.db
+            rows = await compiler.execute_sql_async(ROW_COUNT, session=session)
         self._result_cache = None
         return rows
 
@@ -1707,7 +1712,8 @@ class QuerySet(AltersData):
         query.add_update_fields(values)
         query.annotations = {}
         self._result_cache = None
-        compiler = query.get_compiler(self.db)
+        compiler = query.get_compiler(connection=session.connection)
+        compiler.using = self.db
         if returning_fields is None:
             return await compiler.execute_sql_async(ROW_COUNT, session=session)
         if not returning_fields:
@@ -1741,7 +1747,8 @@ class QuerySet(AltersData):
             q.select = [self.model._meta.pk.get_col(q.get_initial_alias())]
             q.default_cols = False
         q.set_limits(low=0, high=1)
-        compiler = q.get_compiler(self.db)
+        compiler = q.get_compiler(connection=session.connection)
+        compiler.using = self.db
         row = await compiler.execute_sql_async(SINGLE, session=session)
         return row is not None
 
@@ -2449,9 +2456,9 @@ class QuerySet(AltersData):
             unique_fields=unique_fields,
         )
         query.insert_values(fields, objs, raw=raw)
-        return await query.get_compiler(using=using).execute_sql_async(
-            returning_fields, session=session
-        )
+        compiler = query.get_compiler(connection=session.connection)
+        compiler.using = self.db
+        return await compiler.execute_sql_async(returning_fields, session=session)
 
     _insert_async.alters_data = True
 
@@ -2625,7 +2632,7 @@ class QuerySet(AltersData):
                 "prefetch_related() is not yet supported in the async QuerySet path."
             )
         if self._result_cache is None:
-            compiler = self.query.get_compiler(using=self.db)
+            compiler = self._async_compiler(session)
             chunks = await compiler.execute_sql_async(MULTI, session=session)
             self._result_cache = list(
                 self._iterable_class(self, results=chunks, compiler=compiler)

@@ -25,3 +25,13 @@ class Tag(models.Model):
 
     class Meta:
         app_label = 'tests_ours'
+
+
+class PGThing(models.Model):
+    """Model for PostgreSQL-specific field types (jsonb, inet)."""
+
+    data = models.JSONField()
+    addr = models.GenericIPAddressField(null=True)
+
+    class Meta:
+        app_label = 'tests_ours'

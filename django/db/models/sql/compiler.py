@@ -1679,37 +1679,42 @@ class SQLCompiler:
         SQL generation is identical to the synchronous path; only the actual
         database execution is routed through the provided AsyncSession.
         """
-        result_type = result_type or NO_RESULTS
+        original_connection = self.connection
+        self.connection = session.connection
         try:
-            sql, params = self.as_sql()
-            if not sql:
-                raise EmptyResultSet
-        except EmptyResultSet:
-            if result_type == MULTI:
-                return []
-            else:
-                return None
-        if result_type == CURSOR:
-            raise NotImplementedError(
-                "CURSOR result type is not supported in async execution."
-            )
-        result = await session.execute(sql, params)
-        try:
-            if result_type == ROW_COUNT:
-                return result.rowcount
-            if result_type == NO_RESULTS:
-                return None
-            if result_type == SINGLE:
-                row = await result.fetchone()
-                if row:
-                    return row[0 : self.col_count]
-                return row
-            # MULTI: materialize all rows into a single chunk so that the
-            # existing results_iter() helper can consume them unchanged.
-            rows = await result.fetchall()
-            return [rows]
+            result_type = result_type or NO_RESULTS
+            try:
+                sql, params = self.as_sql()
+                if not sql:
+                    raise EmptyResultSet
+            except EmptyResultSet:
+                if result_type == MULTI:
+                    return []
+                else:
+                    return None
+            if result_type == CURSOR:
+                raise NotImplementedError(
+                    "CURSOR result type is not supported in async execution."
+                )
+            result = await session.execute(sql, params)
+            try:
+                if result_type == ROW_COUNT:
+                    return result.rowcount
+                if result_type == NO_RESULTS:
+                    return None
+                if result_type == SINGLE:
+                    row = await result.fetchone()
+                    if row:
+                        return row[0 : self.col_count]
+                    return row
+                # MULTI: materialize all rows into a single chunk so that the
+                # existing results_iter() helper can consume them unchanged.
+                rows = await result.fetchall()
+                return [rows]
+            finally:
+                await result.close()
         finally:
-            await result.close()
+            self.connection = original_connection
 
     def explain_query(self):
         result = list(self.execute_sql())
@@ -2018,49 +2023,54 @@ class SQLInsertCompiler(SQLCompiler):
         """
         Async variant of execute_sql() for INSERT statements.
         """
-        assert not (
-            returning_fields
-            and len(self.query.objs) != 1
-            and not self.connection.features.can_return_rows_from_bulk_insert
-        )
-        opts = self.query.get_meta()
-        self.returning_fields = returning_fields
-        last_result = None
-        for sql, params in self.as_sql():
+        original_connection = self.connection
+        self.connection = session.connection
+        try:
+            assert not (
+                returning_fields
+                and len(self.query.objs) != 1
+                and not self.connection.features.can_return_rows_from_bulk_insert
+            )
+            opts = self.query.get_meta()
+            self.returning_fields = returning_fields
+            last_result = None
+            for sql, params in self.as_sql():
+                if last_result is not None:
+                    await last_result.close()
+                last_result = await session.execute(sql, params)
+            if not returning_fields:
+                if last_result is not None:
+                    await last_result.close()
+                return []
+            obj_len = len(self.query.objs)
+            if (
+                self.connection.features.can_return_rows_from_bulk_insert
+                and obj_len > 1
+            ) or (
+                self.connection.features.can_return_columns_from_insert
+                and obj_len == 1
+            ):
+                rows = await last_result.fetchall()
+                cols = [field.get_col(opts.db_table) for field in self.returning_fields]
+            elif (
+                returning_fields
+                and isinstance(returning_field := returning_fields[0], AutoField)
+                and opts.pk.get_internal_type() == "AutoField"
+            ):
+                cols = [returning_field.get_col(opts.db_table)]
+                rows = [(last_result.lastrowid,)]
+            else:
+                if last_result is not None:
+                    await last_result.close()
+                return []
             if last_result is not None:
                 await last_result.close()
-            last_result = await session.execute(sql, params)
-        if not returning_fields:
-            if last_result is not None:
-                await last_result.close()
-            return []
-        obj_len = len(self.query.objs)
-        if (
-            self.connection.features.can_return_rows_from_bulk_insert
-            and obj_len > 1
-        ) or (
-            self.connection.features.can_return_columns_from_insert
-            and obj_len == 1
-        ):
-            rows = await last_result.fetchall()
-            cols = [field.get_col(opts.db_table) for field in self.returning_fields]
-        elif (
-            returning_fields
-            and isinstance(returning_field := returning_fields[0], AutoField)
-            and opts.pk.get_internal_type() == "AutoField"
-        ):
-            cols = [returning_field.get_col(opts.db_table)]
-            rows = [(last_result.lastrowid,)]
-        else:
-            if last_result is not None:
-                await last_result.close()
-            return []
-        if last_result is not None:
-            await last_result.close()
-        converters = self.get_converters(cols)
-        if converters:
-            rows = self.apply_converters(rows, converters)
-        return list(rows)
+            converters = self.get_converters(cols)
+            if converters:
+                rows = self.apply_converters(rows, converters)
+            return list(rows)
+        finally:
+            self.connection = original_connection
 
 
 class SQLDeleteCompiler(SQLCompiler):

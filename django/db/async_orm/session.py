@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import AbstractAsyncContextManager
 from typing import Any
 
+from .backends.proxy import AsyncDatabaseConnectionProxy
 from .backends.sqlite import AsyncSQLiteBackend
 
 
@@ -71,14 +72,20 @@ class _AtomicContext(AbstractAsyncContextManager):
 class AsyncSession:
     """Explicit, scoped async database session."""
 
-    def __init__(self, backend: Any):
+    def __init__(self, backend: Any, alias: str = "default"):
         self._backend = backend
+        self._alias = alias
         self._conn: Any = None
         self._atomic_nesting = 0
 
     async def _ensure_connection(self) -> None:
         if self._conn is None:
             self._conn = await self._backend.connect()
+
+    @property
+    def connection(self) -> AsyncDatabaseConnectionProxy:
+        """Return a Django-compatible connection proxy for query compilation."""
+        return AsyncDatabaseConnectionProxy(self, self._alias)
 
     def atomic(self) -> _AtomicContext:
         """Return an async context manager that begins/commits or rolls back a transaction.
@@ -119,8 +126,13 @@ class AsyncDatabase:
     def __init__(self, url: str):
         self._backend = self._backend_from_url(url)
 
-    def session(self) -> AsyncSession:
-        return AsyncSession(self._backend)
+    def session(self, alias: str = "default") -> AsyncSession:
+        return AsyncSession(self._backend, alias=alias)
+
+    async def close(self) -> None:
+        """Close any underlying pool held by the backend."""
+        if hasattr(self._backend, "close_pool"):
+            await self._backend.close_pool()
 
     @staticmethod
     def _backend_from_url(url: str) -> Any:
@@ -134,4 +146,9 @@ class AsyncDatabase:
                 if not path:
                     path = ":memory:"
             return AsyncSQLiteBackend(path)
+        if url.startswith("postgresql+asyncpg://"):
+            from .backends.postgresql import AsyncPostgreSQLBackend
+
+            dsn = "postgresql://" + url[len("postgresql+asyncpg://") :]
+            return AsyncPostgreSQLBackend(dsn)
         raise ValueError(f"Unsupported async database URL: {url!r}")

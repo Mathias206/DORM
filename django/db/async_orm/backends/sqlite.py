@@ -13,8 +13,65 @@ _FORMAT_QMARK_REGEX = _lazy_re_compile(r"(?<!%)%s")
 class AsyncSQLiteBackend:
     """Async backend backed by ``aiosqlite``."""
 
+    vendor = "sqlite"
+    display_name = "SQLite"
+
+    @property
+    def data_types(self):
+        from django.db.backends.sqlite3.base import DatabaseWrapper
+        return DatabaseWrapper.data_types
+
+    @property
+    def data_type_check_constraints(self):
+        from django.db.backends.sqlite3.base import DatabaseWrapper
+        return DatabaseWrapper.data_type_check_constraints
+
+    @property
+    def data_types_suffix(self):
+        from django.db.backends.sqlite3.base import DatabaseWrapper
+        return DatabaseWrapper.data_types_suffix
+
+    @property
+    def operators(self):
+        from django.db.backends.sqlite3.base import DatabaseWrapper
+        return DatabaseWrapper.operators
+
+    @property
+    def pattern_ops(self):
+        from django.db.backends.sqlite3.base import DatabaseWrapper
+        return DatabaseWrapper.pattern_ops
+
+    @property
+    def pattern_esc(self):
+        from django.db.backends.sqlite3.base import DatabaseWrapper
+        return DatabaseWrapper.pattern_esc
+
     def __init__(self, path: str):
         self.path = path
+
+    @staticmethod
+    def create_operations(connection):
+        from django.db.backends.sqlite3.operations import DatabaseOperations
+
+        class AsyncSQLiteOperations(DatabaseOperations):
+            def __init__(self, connection):
+                super().__init__(connection)
+
+            def __del__(self):
+                # Avoid reference-cycle GC issues caused by BaseDatabaseOperations.__del__.
+                pass
+
+        return AsyncSQLiteOperations(connection)
+
+    @staticmethod
+    def create_features(connection):
+        from django.db.backends.sqlite3.features import DatabaseFeatures
+
+        class AsyncSQLiteFeatures(DatabaseFeatures):
+            def __init__(self, connection):
+                self.connection = connection
+
+        return AsyncSQLiteFeatures(connection)
 
     async def connect(self) -> aiosqlite.Connection:
         # isolation_level=None gives us explicit transaction control.
