@@ -9,6 +9,7 @@ requires-python = ">= 3.12"
 dependencies = [
     "asgiref>=3.9.1",
     "sqlparse>=0.5.0",
+    "aiosqlite>=0.20.0",
     "tzdata; sys_platform == 'win32'",
 ]
 authors = [
@@ -53,3 +54,7 @@ version = {attr = "django.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["django*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests_ours"]
