@@ -2,7 +2,7 @@ from dorm.utils.version import get_version
 
 VERSION = (6, 2, 0, "alpha", 0)
 
-__version__ = get_version(VERSION)
+__version__ = "6.2"
 
 
 def setup():
