@@ -31,9 +31,9 @@ from itertools import product
 
 import requests
 
-import django
-from django.conf import settings
-from django.core.management import call_command
+import dorm
+from dorm.conf import settings
+from dorm.core.management import call_command
 
 HAVE_JS = ["admin"]
 LANG_OVERRIDES = {
@@ -184,7 +184,7 @@ def _tx_resource_slug_for_name(name):
 
 def _tx_resource_for_name(name):
     """Return the Transifex resource name."""
-    return "django." + _tx_resource_slug_for_name(name)
+    return "dorm." + _tx_resource_slug_for_name(name)
 
 
 def _check_diff(cat_name, base_path):
@@ -206,11 +206,11 @@ def _check_diff(cat_name, base_path):
 
 def update_catalogs(resources=None, languages=None, verbosity=0):
     """
-    Update the en/LC_MESSAGES/django.po (main and contrib) files with
+    Update the en/LC_MESSAGES/dorm.po (main and contrib) files with
     new/updated translatable strings.
     """
     settings.configure()
-    django.setup()
+    dorm.setup()
     if resources is not None:
         print("`update_catalogs` will always process all resources.")
     contrib_dirs = _get_locale_dirs(None, include_core=False)
@@ -371,7 +371,7 @@ if __name__ == "__main__":
 
     parser_update = subparsers.add_parser(
         "update_catalogs",
-        help="update English django.po files with new/updated translatable strings",
+        help="update English dorm.po files with new/updated translatable strings",
     )
     add_common_arguments(parser_update)
 

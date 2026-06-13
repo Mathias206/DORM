@@ -1,5 +1,5 @@
-from django.db import models
-from django.db.models.functions import Coalesce, Lower
+from dorm.db import models
+from dorm.db.models.functions import Coalesce, Lower
 
 
 class Product(models.Model):

@@ -1,8 +1,8 @@
 import operator
 from datetime import datetime
 
-from django.db import DatabaseError, NotSupportedError, connection
-from django.db.models import (
+from dorm.db import DatabaseError, NotSupportedError, connection
+from dorm.db.models import (
     DateTimeField,
     Exists,
     F,
@@ -12,9 +12,9 @@ from django.db.models import (
     Transform,
     Value,
 )
-from django.db.models.functions import Cast, Mod
-from django.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
-from django.test.utils import CaptureQueriesContext
+from dorm.db.models.functions import Cast, Mod
+from dorm.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
+from dorm.test.utils import CaptureQueriesContext
 
 from .models import (
     Annotation,

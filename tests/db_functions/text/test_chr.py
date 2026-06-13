@@ -1,7 +1,7 @@
-from django.db.models import F, IntegerField
-from django.db.models.functions import Chr, Left, Ord
-from django.test import TestCase
-from django.test.utils import register_lookup
+from dorm.db.models import F, IntegerField
+from dorm.db.models.functions import Chr, Left, Ord
+from dorm.test import TestCase
+from dorm.test.utils import register_lookup
 
 from ..models import Author
 

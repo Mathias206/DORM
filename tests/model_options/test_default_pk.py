@@ -1,7 +1,7 @@
-from django.core.exceptions import ImproperlyConfigured
-from django.db import models
-from django.test import SimpleTestCase, override_settings
-from django.test.utils import isolate_apps
+from dorm.core.exceptions import ImproperlyConfigured
+from dorm.db import models
+from dorm.test import SimpleTestCase, override_settings
+from dorm.test.utils import isolate_apps
 
 
 class MyBigAutoField(models.BigAutoField):
@@ -11,18 +11,18 @@ class MyBigAutoField(models.BigAutoField):
 @isolate_apps("model_options")
 class TestDefaultPK(SimpleTestCase):
     def test_default_value_of_default_auto_field_setting(self):
-        """django.conf.global_settings defaults to BigAutoField."""
+        """dorm.conf.global_settings defaults to BigAutoField."""
 
         class MyModel(models.Model):
             pass
 
         self.assertIsInstance(MyModel._meta.pk, models.BigAutoField)
 
-    @override_settings(DEFAULT_AUTO_FIELD="django.db.models.NonexistentAutoField")
+    @override_settings(DEFAULT_AUTO_FIELD="dorm.db.models.NonexistentAutoField")
     def test_default_auto_field_setting_nonexistent(self):
         msg = (
             "DEFAULT_AUTO_FIELD refers to the module "
-            "'django.db.models.NonexistentAutoField' that could not be "
+            "'dorm.db.models.NonexistentAutoField' that could not be "
             "imported."
         )
         with self.assertRaisesMessage(ImproperlyConfigured, msg):
@@ -34,7 +34,7 @@ class TestDefaultPK(SimpleTestCase):
     def test_app_default_auto_field_nonexistent(self):
         msg = (
             "model_options.apps.ModelPKNonexistentConfig.default_auto_field "
-            "refers to the module 'django.db.models.NonexistentAutoField' "
+            "refers to the module 'dorm.db.models.NonexistentAutoField' "
             "that could not be imported."
         )
         with self.assertRaisesMessage(ImproperlyConfigured, msg):
@@ -42,10 +42,10 @@ class TestDefaultPK(SimpleTestCase):
             class Model(models.Model):
                 pass
 
-    @override_settings(DEFAULT_AUTO_FIELD="django.db.models.TextField")
+    @override_settings(DEFAULT_AUTO_FIELD="dorm.db.models.TextField")
     def test_default_auto_field_setting_non_auto(self):
         msg = (
-            "Primary key 'django.db.models.TextField' referred by "
+            "Primary key 'dorm.db.models.TextField' referred by "
             "DEFAULT_AUTO_FIELD must subclass AutoField."
         )
         with self.assertRaisesMessage(ValueError, msg):
@@ -56,7 +56,7 @@ class TestDefaultPK(SimpleTestCase):
     @isolate_apps("model_options.apps.ModelPKNonAutoConfig")
     def test_app_default_auto_field_non_auto(self):
         msg = (
-            "Primary key 'django.db.models.TextField' referred by "
+            "Primary key 'dorm.db.models.TextField' referred by "
             "model_options.apps.ModelPKNonAutoConfig.default_auto_field must "
             "subclass AutoField."
         )
@@ -85,7 +85,7 @@ class TestDefaultPK(SimpleTestCase):
                 pass
 
     @isolate_apps("model_options.apps.ModelDefaultPKConfig")
-    @override_settings(DEFAULT_AUTO_FIELD="django.db.models.SmallAutoField")
+    @override_settings(DEFAULT_AUTO_FIELD="dorm.db.models.SmallAutoField")
     def test_default_auto_field_setting(self):
         class Model(models.Model):
             pass
@@ -102,7 +102,7 @@ class TestDefaultPK(SimpleTestCase):
         self.assertIsInstance(Model._meta.pk, MyBigAutoField)
 
     @isolate_apps("model_options.apps.ModelPKConfig")
-    @override_settings(DEFAULT_AUTO_FIELD="django.db.models.AutoField")
+    @override_settings(DEFAULT_AUTO_FIELD="dorm.db.models.AutoField")
     def test_app_default_auto_field(self):
         class Model(models.Model):
             pass
@@ -110,7 +110,7 @@ class TestDefaultPK(SimpleTestCase):
         self.assertIsInstance(Model._meta.pk, models.SmallAutoField)
 
     @isolate_apps("model_options.apps.ModelDefaultPKConfig")
-    @override_settings(DEFAULT_AUTO_FIELD="django.db.models.SmallAutoField")
+    @override_settings(DEFAULT_AUTO_FIELD="dorm.db.models.SmallAutoField")
     def test_m2m_default_auto_field_setting(self):
         class M2MModel(models.Model):
             m2m = models.ManyToManyField("self")
@@ -119,7 +119,7 @@ class TestDefaultPK(SimpleTestCase):
         self.assertIsInstance(m2m_pk, models.SmallAutoField)
 
     @isolate_apps("model_options.apps.ModelPKConfig")
-    @override_settings(DEFAULT_AUTO_FIELD="django.db.models.AutoField")
+    @override_settings(DEFAULT_AUTO_FIELD="dorm.db.models.AutoField")
     def test_m2m_app_default_auto_field(self):
         class M2MModel(models.Model):
             m2m = models.ManyToManyField("self")

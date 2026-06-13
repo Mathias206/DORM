@@ -1,8 +1,8 @@
-from django.core.exceptions import ObjectNotUpdated
-from django.db import DatabaseError, connection, transaction
-from django.db.models import F
-from django.db.models.signals import post_save, pre_save
-from django.test import TestCase
+from dorm.core.exceptions import ObjectNotUpdated
+from dorm.db import DatabaseError, connection, transaction
+from dorm.db.models import F
+from dorm.db.models.signals import post_save, pre_save
+from dorm.test import TestCase
 
 from .models import Account, Employee, Person, Profile, ProxyEmployee
 

@@ -208,7 +208,7 @@ def main():
     diff_command = [
         "diff",
         "-qr",
-        "./django/",
+        "./dorm/",
         os.path.join(dist_path, django_major_version, "django"),
     ]
     subprocess.run(diff_command)

@@ -1,5 +1,5 @@
-from django.db import connection, models
-from django.test import SimpleTestCase
+from dorm.db import connection, models
+from dorm.test import SimpleTestCase
 
 from .fields import CustomDescriptorField, CustomTypedField
 

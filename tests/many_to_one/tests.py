@@ -1,15 +1,15 @@
 import datetime
 from copy import deepcopy
 
-from django.core.exceptions import (
+from dorm.core.exceptions import (
     FieldError,
     FieldFetchBlocked,
     MultipleObjectsReturned,
 )
-from django.db import IntegrityError, models, transaction
-from django.db.models import FETCH_PEERS, RAISE
-from django.test import TestCase
-from django.utils.translation import gettext_lazy
+from dorm.db import IntegrityError, models, transaction
+from dorm.db.models import FETCH_PEERS, RAISE
+from dorm.test import TestCase
+from dorm.utils.translation import gettext_lazy
 
 from .models import (
     Article,

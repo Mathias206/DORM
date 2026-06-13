@@ -1,10 +1,10 @@
 from datetime import date
 from decimal import Decimal
 
-from django.core.exceptions import FieldDoesNotExist, FieldFetchBlocked
-from django.db.models import FETCH_PEERS, RAISE
-from django.db.models.query import RawQuerySet
-from django.test import TestCase, skipUnlessDBFeature
+from dorm.core.exceptions import FieldDoesNotExist, FieldFetchBlocked
+from dorm.db.models import FETCH_PEERS, RAISE
+from dorm.db.models.query import RawQuerySet
+from dorm.test import TestCase, skipUnlessDBFeature
 
 from .models import (
     Author,

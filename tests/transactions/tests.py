@@ -3,7 +3,7 @@ import threading
 import time
 from unittest import skipIf, skipUnless
 
-from django.db import (
+from dorm.db import (
     DatabaseError,
     Error,
     IntegrityError,
@@ -11,14 +11,14 @@ from django.db import (
     connection,
     transaction,
 )
-from django.test import (
+from dorm.test import (
     SimpleTestCase,
     TestCase,
     TransactionTestCase,
     skipIfDBFeature,
     skipUnlessDBFeature,
 )
-from django.utils.deprecation import RemovedInDjango70Warning
+from dorm.utils.deprecation import RemovedInDjango70Warning
 
 from .models import Reporter
 

@@ -1,10 +1,10 @@
 from datetime import datetime, timedelta
 
-from django.db import connection
-from django.db.models import TextField
-from django.db.models.functions import Cast, Now
-from django.test import TestCase
-from django.utils import timezone
+from dorm.db import connection
+from dorm.db.models import TextField
+from dorm.db.models.functions import Cast, Now
+from dorm.test import TestCase
+from dorm.utils import timezone
 
 from ..models import Article
 

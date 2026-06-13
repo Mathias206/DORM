@@ -3,13 +3,13 @@ import gc
 from inspect import markcoroutinefunction
 from unittest import mock
 
-from django import dispatch
-from django.apps.registry import Apps
-from django.db import models
-from django.db.models import signals
-from django.dispatch import receiver
-from django.test import SimpleTestCase, TestCase
-from django.test.utils import isolate_apps
+from dorm import dispatch
+from dorm.apps.registry import Apps
+from dorm.db import models
+from dorm.db.models import signals
+from dorm.dispatch import receiver
+from dorm.test import SimpleTestCase, TestCase
+from dorm.test.utils import isolate_apps
 
 from .models import Author, Book, Car, Page, Person
 

@@ -2,11 +2,11 @@ import re
 from io import StringIO
 from unittest import mock, skipUnless
 
-from django.core.management import CommandError, call_command
-from django.core.management.commands import inspectdb
-from django.db import connection
-from django.db.backends.base.introspection import TableInfo
-from django.test import (
+from dorm.core.management import CommandError, call_command
+from dorm.core.management.commands import inspectdb
+from dorm.db import connection
+from dorm.db.backends.base.introspection import TableInfo
+from dorm.test import (
     TestCase,
     TransactionTestCase,
     skipIfDBFeature,
@@ -487,7 +487,7 @@ class InspectDBTestCase(TestCase):
         """
         out = StringIO()
         with mock.patch(
-            "django.db.connection.introspection.data_types_reverse."
+            "dorm.db.connection.introspection.data_types_reverse."
             "base_data_types_reverse",
             {
                 "text": "myfields.TextField",
@@ -506,7 +506,7 @@ class InspectDBTestCase(TestCase):
         """
         out = StringIO()
         with mock.patch(
-            "django.db.connection.introspection.get_table_list",
+            "dorm.db.connection.introspection.get_table_list",
             return_value=[TableInfo(name="nonexistent", type="t")],
         ):
             call_command("inspectdb", stdout=out)

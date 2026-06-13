@@ -1,7 +1,7 @@
-from django.db import connection
-from django.db.models import F, Value
-from django.db.models.functions import Collate
-from django.test import TestCase
+from dorm.db import connection
+from dorm.db.models import F, Value
+from dorm.db.models.functions import Collate
+from dorm.test import TestCase
 
 from ..models import Author
 

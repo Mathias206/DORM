@@ -992,7 +992,7 @@ class TestGetRecentCommitCount(BaseTestCase):
         with self._make_github_request_mock(commits):
             self.assertEqual(
                 check_pr.get_recent_commit_count(
-                    "someuser", "django/django", "token", since_days=365, max_count=5
+                    "someuser", "dorm/django", "token", since_days=365, max_count=5
                 ),
                 3,
             )
@@ -1001,7 +1001,7 @@ class TestGetRecentCommitCount(BaseTestCase):
         with self._make_github_request_mock([]):
             self.assertEqual(
                 check_pr.get_recent_commit_count(
-                    "newuser", "django/django", "token", since_days=365, max_count=5
+                    "newuser", "dorm/django", "token", since_days=365, max_count=5
                 ),
                 0,
             )
@@ -1009,7 +1009,7 @@ class TestGetRecentCommitCount(BaseTestCase):
     def test_api_path_includes_author_since_and_max_count(self):
         with mock.patch.object(check_pr, "github_request", return_value=[]) as mock_gh:
             check_pr.get_recent_commit_count(
-                "someuser", "django/django", "token", since_days=365, max_count=5
+                "someuser", "dorm/django", "token", since_days=365, max_count=5
             )
         params = mock_gh.call_args.kwargs["params"]
         self.assertEqual(params["author"], "someuser")

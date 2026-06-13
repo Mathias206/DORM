@@ -1,10 +1,10 @@
 import datetime
 
-from django.core import signing
-from django.test import SimpleTestCase, override_settings
-from django.test.utils import freeze_time
-from django.utils.crypto import InvalidAlgorithm
-from django.utils.deprecation import RemovedInDjango70Warning
+from dorm.core import signing
+from dorm.test import SimpleTestCase, override_settings
+from dorm.test.utils import freeze_time
+from dorm.utils.crypto import InvalidAlgorithm
+from dorm.utils.deprecation import RemovedInDjango70Warning
 
 
 class TestSigner(SimpleTestCase):

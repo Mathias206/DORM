@@ -1,6 +1,6 @@
-from django.db import connection, models
-from django.db.backends.utils import truncate_name
-from django.test import TestCase
+from dorm.db import connection, models
+from dorm.db.backends.utils import truncate_name
+from dorm.test import TestCase
 
 from .models.article import Article, Site
 from .models.publication import Publication

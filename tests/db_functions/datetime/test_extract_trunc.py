@@ -1,9 +1,9 @@
 import datetime
 import zoneinfo
 
-from django.conf import settings
-from django.db import DataError, OperationalError
-from django.db.models import (
+from dorm.conf import settings
+from dorm.db import DataError, OperationalError
+from dorm.db.models import (
     DateField,
     DateTimeField,
     F,
@@ -13,7 +13,7 @@ from django.db.models import (
     Subquery,
     TimeField,
 )
-from django.db.models.functions import (
+from dorm.db.models.functions import (
     Extract,
     ExtractDay,
     ExtractHour,
@@ -38,13 +38,13 @@ from django.db.models.functions import (
     TruncWeek,
     TruncYear,
 )
-from django.test import (
+from dorm.test import (
     TestCase,
     override_settings,
     skipIfDBFeature,
     skipUnlessDBFeature,
 )
-from django.utils import timezone
+from dorm.utils import timezone
 
 from ..models import Author, DTModel, Fan
 

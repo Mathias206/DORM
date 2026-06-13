@@ -1,14 +1,14 @@
 import pytest
-from django.db import connection
-from django.db.migrations.autodetector import MigrationAutodetector
-from django.db.migrations.loader import MigrationLoader
-from django.db.migrations.state import ProjectState
-from django.apps import apps
+from dorm.db import connection
+from dorm.db.migrations.autodetector import MigrationAutodetector
+from dorm.db.migrations.loader import MigrationLoader
+from dorm.db.migrations.state import ProjectState
+from dorm.apps import apps
 
 
 @pytest.fixture
 def db():
-    from django.db import transaction
+    from dorm.db import transaction
     with transaction.atomic():
         yield
 
@@ -28,10 +28,10 @@ def test_autodetector_produces_operations(db):
 
 
 def test_migration_writer():
-    from django.db.migrations.writer import MigrationWriter
-    from django.db.migrations import Migration
-    from django.db.migrations.operations import CreateModel
-    from django.db import models
+    from dorm.db.migrations.writer import MigrationWriter
+    from dorm.db.migrations import Migration
+    from dorm.db.migrations.operations import CreateModel
+    from dorm.db import models
 
     op = CreateModel(
         name='TestModel',

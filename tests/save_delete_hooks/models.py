@@ -5,7 +5,7 @@ To execute arbitrary code around ``save()`` and ``delete()``, just subclass
 the methods.
 """
 
-from django.db import models
+from dorm.db import models
 
 
 class Person(models.Model):

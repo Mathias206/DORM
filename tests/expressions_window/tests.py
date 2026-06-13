@@ -2,9 +2,9 @@ import datetime
 from decimal import Decimal
 from unittest import mock
 
-from django.core.exceptions import FieldError
-from django.db import NotSupportedError, connection
-from django.db.models import (
+from dorm.core.exceptions import FieldError
+from dorm.db import NotSupportedError, connection
+from dorm.db.models import (
     Avg,
     Case,
     Count,
@@ -24,8 +24,8 @@ from django.db.models import (
     WindowFrame,
     WindowFrameExclusion,
 )
-from django.db.models.fields.json import KeyTextTransform, KeyTransform
-from django.db.models.functions import (
+from dorm.db.models.fields.json import KeyTextTransform, KeyTransform
+from dorm.db.models.functions import (
     Cast,
     CumeDist,
     DenseRank,
@@ -41,9 +41,9 @@ from django.db.models.functions import (
     RowNumber,
     Upper,
 )
-from django.db.models.lookups import Exact
-from django.test import SimpleTestCase, TestCase, skipIfDBFeature, skipUnlessDBFeature
-from django.test.utils import CaptureQueriesContext
+from dorm.db.models.lookups import Exact
+from dorm.test import SimpleTestCase, TestCase, skipIfDBFeature, skipUnlessDBFeature
+from dorm.test.utils import CaptureQueriesContext
 
 from .models import Classification, Detail, Employee, PastEmployeeDepartment
 

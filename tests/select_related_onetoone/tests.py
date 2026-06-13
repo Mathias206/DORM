@@ -1,8 +1,8 @@
-from django.core.exceptions import FieldError
-from django.db.models import FilteredRelation
-from django.test import SimpleTestCase, TestCase
-from django.test.utils import ignore_warnings
-from django.utils.deprecation import RemovedInDjango70Warning
+from dorm.core.exceptions import FieldError
+from dorm.db.models import FilteredRelation
+from dorm.test import SimpleTestCase, TestCase
+from dorm.test.utils import ignore_warnings
+from dorm.utils.deprecation import RemovedInDjango70Warning
 
 from .models import (
     AdvancedUserStat,

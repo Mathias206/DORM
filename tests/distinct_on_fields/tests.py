@@ -1,8 +1,8 @@
-from django.db import connection
-from django.db.models import CharField, F, Max
-from django.db.models.functions import Lower
-from django.test import TestCase, skipUnlessDBFeature
-from django.test.utils import register_lookup
+from dorm.db import connection
+from dorm.db.models import CharField, F, Max
+from dorm.db.models.functions import Lower
+from dorm.test import TestCase, skipUnlessDBFeature
+from dorm.test.utils import register_lookup
 
 from .models import Celebrity, Fan, Staff, StaffTag, Tag
 

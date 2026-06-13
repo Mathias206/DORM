@@ -1,6 +1,6 @@
-from django.core.exceptions import ObjectNotUpdated
-from django.db import DatabaseError, IntegrityError, models, transaction
-from django.test import TestCase
+from dorm.core.exceptions import ObjectNotUpdated
+from dorm.db import DatabaseError, IntegrityError, models, transaction
+from dorm.test import TestCase
 
 from .models import (
     Counter,

@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest import TestCase, mock
 
-from django.core.exceptions import ValidationError
-from django.core.files.base import ContentFile
-from django.core.validators import (
+from dorm.core.exceptions import ValidationError
+from dorm.core.files.base import ContentFile
+from dorm.core.validators import (
     BaseValidator,
     DecimalValidator,
     DomainNameValidator,
@@ -33,7 +33,7 @@ from django.core.validators import (
     validate_slug,
     validate_unicode_slug,
 )
-from django.test import SimpleTestCase
+from dorm.test import SimpleTestCase
 
 try:
     from PIL import Image  # noqa
@@ -394,7 +394,7 @@ TEST_DATA = [
     (validate_ipv4_address, "1.02.3.4", ValidationError),
     (validate_ipv4_address, "1.2.03.4", ValidationError),
     (validate_ipv4_address, "1.2.3.04", ValidationError),
-    # validate_ipv6_address uses django.utils.ipv6, which
+    # validate_ipv6_address uses dorm.utils.ipv6, which
     # is tested in much greater detail in its own testcase
     (validate_ipv6_address, "fe80::1", None),
     (validate_ipv6_address, "::1", None),

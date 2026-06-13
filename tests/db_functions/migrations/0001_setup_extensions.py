@@ -1,9 +1,9 @@
 from unittest import mock
 
-from django.db import migrations
+from dorm.db import migrations
 
 try:
-    from django.contrib.postgres.operations import CryptoExtension
+    from dorm.contrib.postgres.operations import CryptoExtension
 except ImportError:
     CryptoExtension = mock.Mock()
 

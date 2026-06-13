@@ -7,7 +7,7 @@ commit-on-success behavior. Alternatively, you can manage the transaction
 manually.
 """
 
-from django.db import models
+from dorm.db import models
 
 
 class Reporter(models.Model):

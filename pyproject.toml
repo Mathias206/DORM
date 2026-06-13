@@ -3,7 +3,7 @@ requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "Django"
+name = "DORM"
 dynamic = ["version"]
 requires-python = ">= 3.12"
 dependencies = [
@@ -51,10 +51,10 @@ default_section = "THIRDPARTY"
 known_first_party = "django"
 
 [tool.setuptools.dynamic]
-version = {attr = "django.__version__"}
+version = {attr = "dorm.__version__"}
 
 [tool.setuptools.packages.find]
-include = ["django*"]
+include = ["dorm*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

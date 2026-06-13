@@ -2,24 +2,24 @@ from datetime import datetime
 from math import ceil
 from operator import attrgetter
 
-from django.core.exceptions import FieldDoesNotExist
-from django.db import (
+from dorm.core.exceptions import FieldDoesNotExist
+from dorm.db import (
     IntegrityError,
     NotSupportedError,
     OperationalError,
     ProgrammingError,
     connection,
 )
-from django.db.models import FileField, Value
-from django.db.models.functions import Lower, Now
-from django.test import (
+from dorm.db.models import FileField, Value
+from dorm.db.models.functions import Lower, Now
+from dorm.test import (
     TestCase,
     TransactionTestCase,
     skipIfDBFeature,
     skipUnlessDBFeature,
 )
-from django.test.utils import CaptureQueriesContext
-from django.utils import timezone
+from dorm.test.utils import CaptureQueriesContext
+from dorm.utils import timezone
 
 from .models import (
     BigAutoFieldModel,

@@ -8,9 +8,9 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from unittest import mock
 
-from django.core.exceptions import FieldError
-from django.db import DatabaseError, NotSupportedError, connection
-from django.db.models import (
+from dorm.core.exceptions import FieldError
+from dorm.db import DatabaseError, NotSupportedError, connection
+from dorm.db.models import (
     AutoField,
     Avg,
     BinaryField,
@@ -47,7 +47,7 @@ from django.db.models import (
     Variance,
     When,
 )
-from django.db.models.expressions import (
+from dorm.db.models.expressions import (
     Col,
     ColPairs,
     Combinable,
@@ -57,7 +57,7 @@ from django.db.models.expressions import (
     RawSQL,
     Ref,
 )
-from django.db.models.functions import (
+from dorm.db.models.functions import (
     Coalesce,
     Concat,
     ExtractDay,
@@ -68,17 +68,17 @@ from django.db.models.functions import (
     TruncDate,
     Upper,
 )
-from django.db.models.sql import constants
-from django.db.models.sql.datastructures import Join
-from django.test import SimpleTestCase, TestCase, skipUnlessDBFeature
-from django.test.utils import (
+from dorm.db.models.sql import constants
+from dorm.db.models.sql.datastructures import Join
+from dorm.test import SimpleTestCase, TestCase, skipUnlessDBFeature
+from dorm.test.utils import (
     Approximate,
     CaptureQueriesContext,
     isolate_apps,
     register_lookup,
 )
-from django.utils.functional import SimpleLazyObject
-from django.utils.version import PY314
+from dorm.utils.functional import SimpleLazyObject
+from dorm.utils.version import PY314
 
 from .models import (
     UUID,
@@ -1371,7 +1371,7 @@ class FTests(SimpleTestCase):
     def test_deconstruct(self):
         f = F("name")
         path, args, kwargs = f.deconstruct()
-        self.assertEqual(path, "django.db.models.F")
+        self.assertEqual(path, "dorm.db.models.F")
         self.assertEqual(args, (f.name,))
         self.assertEqual(kwargs, {})
 
@@ -2451,14 +2451,14 @@ class ValueTests(TestCase):
     def test_deconstruct(self):
         value = Value("name")
         path, args, kwargs = value.deconstruct()
-        self.assertEqual(path, "django.db.models.Value")
+        self.assertEqual(path, "dorm.db.models.Value")
         self.assertEqual(args, (value.value,))
         self.assertEqual(kwargs, {})
 
     def test_deconstruct_output_field(self):
         value = Value("name", output_field=CharField())
         path, args, kwargs = value.deconstruct()
-        self.assertEqual(path, "django.db.models.Value")
+        self.assertEqual(path, "dorm.db.models.Value")
         self.assertEqual(args, (value.value,))
         self.assertEqual(len(kwargs), 1)
         self.assertEqual(

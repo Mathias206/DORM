@@ -1,11 +1,11 @@
 import unittest
 
-from django.db import NotSupportedError, connection
-from django.db.models import CharField, F, Value
-from django.db.models.functions import Cast, JSONArray, JSONObject, Lower
-from django.test import TestCase
-from django.test.testcases import skipIfDBFeature, skipUnlessDBFeature
-from django.utils import timezone
+from dorm.db import NotSupportedError, connection
+from dorm.db.models import CharField, F, Value
+from dorm.db.models.functions import Cast, JSONArray, JSONObject, Lower
+from dorm.test import TestCase
+from dorm.test.testcases import skipIfDBFeature, skipUnlessDBFeature
+from dorm.utils import timezone
 
 from ..models import Article, Author
 

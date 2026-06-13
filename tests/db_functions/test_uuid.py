@@ -1,10 +1,10 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from django.db import NotSupportedError, connection
-from django.db.models.functions import UUID4, UUID7
-from django.test import TestCase
-from django.test.testcases import skipIfDBFeature, skipUnlessDBFeature
+from dorm.db import NotSupportedError, connection
+from dorm.db.models.functions import UUID4, UUID7
+from dorm.test import TestCase
+from dorm.test.testcases import skipIfDBFeature, skipUnlessDBFeature
 
 from .models import UUIDModel
 

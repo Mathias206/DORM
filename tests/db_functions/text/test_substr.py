@@ -1,6 +1,6 @@
-from django.db.models import Value as V
-from django.db.models.functions import Lower, StrIndex, Substr, Upper
-from django.test import TestCase
+from dorm.db.models import Value as V
+from dorm.db.models.functions import Lower, StrIndex, Substr, Upper
+from dorm.test import TestCase
 
 from ..models import Author
 

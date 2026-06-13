@@ -3,7 +3,7 @@ Models can have a ``managed`` attribute, which specifies whether the SQL code
 is generated for the table on various manage.py operations.
 """
 
-from django.db import models
+from dorm.db import models
 
 # All of these models are created in the database by Django.
 

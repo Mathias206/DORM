@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from django.test import tag
+from dorm.test import tag
 
 
 @tag("slow")

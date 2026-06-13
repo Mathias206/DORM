@@ -1,7 +1,7 @@
-from django.apps import apps
-from django.conf import settings
-from django.db import connection
-from django.test import TransactionTestCase, skipIfDBFeature, skipUnlessDBFeature
+from dorm.apps import apps
+from dorm.conf import settings
+from dorm.db import connection
+from dorm.test import TransactionTestCase, skipIfDBFeature, skipUnlessDBFeature
 
 from .models.tablespaces import (
     Article,

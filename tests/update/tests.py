@@ -1,11 +1,11 @@
 import unittest
 
-from django.core.exceptions import FieldError
-from django.db import IntegrityError, connection, transaction
-from django.db.models import Case, CharField, Count, F, IntegerField, Max, When
-from django.db.models.functions import Abs, Concat, Lower
-from django.test import TestCase
-from django.test.utils import register_lookup
+from dorm.core.exceptions import FieldError
+from dorm.db import IntegrityError, connection, transaction
+from dorm.db.models import Case, CharField, Count, F, IntegerField, Max, When
+from dorm.db.models.functions import Abs, Concat, Lower
+from dorm.test import TestCase
+from dorm.test.utils import register_lookup
 
 from .models import (
     A,
@@ -157,7 +157,7 @@ class AdvancedTests(TestCase):
         self.assertEqual(bar_qs[0].foo_id, b_foo.target)
 
     def test_update_m2m_field(self):
-        rel = "<django.db.models.fields.related.ManyToManyField: m2m_foo>"
+        rel = "<dorm.db.models.fields.related.ManyToManyField: m2m_foo>"
         msg = f"Cannot update model field {rel} (only concrete fields are permitted)."
         with self.assertRaisesMessage(FieldError, msg):
             Bar.objects.update(m2m_foo="whatever")

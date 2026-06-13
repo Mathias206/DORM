@@ -3,9 +3,9 @@ from decimal import Decimal
 from itertools import chain
 from unittest import skipUnless
 
-from django.core.exceptions import FieldDoesNotExist, FieldError
-from django.db import connection
-from django.db.models import (
+from dorm.core.exceptions import FieldDoesNotExist, FieldError
+from dorm.db import connection
+from dorm.db.models import (
     BooleanField,
     Case,
     CharField,
@@ -28,8 +28,8 @@ from django.db.models import (
     Value,
     When,
 )
-from django.db.models.expressions import RawSQL
-from django.db.models.functions import (
+from dorm.db.models.expressions import RawSQL
+from dorm.db.models.functions import (
     Cast,
     Coalesce,
     ExtractYear,
@@ -38,10 +38,10 @@ from django.db.models.functions import (
     Lower,
     Trim,
 )
-from django.db.models.sql.query import get_field_names_from_opts
-from django.test import TestCase, skipUnlessDBFeature
-from django.test.utils import register_lookup
-from django.utils.deprecation import RemovedInDjango70Warning
+from dorm.db.models.sql.query import get_field_names_from_opts
+from dorm.test import TestCase, skipUnlessDBFeature
+from dorm.test.utils import register_lookup
+from dorm.utils.deprecation import RemovedInDjango70Warning
 
 from .models import (
     Author,

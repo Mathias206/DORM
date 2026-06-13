@@ -1,5 +1,5 @@
-from django.apps import apps
-from django.test import SimpleTestCase
+from dorm.apps import apps
+from dorm.test import SimpleTestCase
 
 
 class NoModelTests(SimpleTestCase):

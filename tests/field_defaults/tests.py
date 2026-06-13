@@ -2,10 +2,10 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from math import pi
 
-from django.core.exceptions import ValidationError
-from django.db import connection
-from django.db.models import Case, F, FloatField, Value, When
-from django.db.models.expressions import (
+from dorm.core.exceptions import ValidationError
+from dorm.db import connection
+from dorm.db.models import Case, F, FloatField, Value, When
+from dorm.db.models.expressions import (
     Expression,
     ExpressionList,
     ExpressionWrapper,
@@ -13,9 +13,9 @@ from django.db.models.expressions import (
     OrderByList,
     RawSQL,
 )
-from django.db.models.functions import Collate
-from django.db.models.lookups import GreaterThan
-from django.test import SimpleTestCase, TestCase, skipUnlessDBFeature
+from dorm.db.models.functions import Collate
+from dorm.db.models.lookups import GreaterThan
+from dorm.test import SimpleTestCase, TestCase, skipUnlessDBFeature
 
 from .models import (
     Article,

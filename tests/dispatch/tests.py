@@ -2,10 +2,10 @@ import weakref
 from types import TracebackType
 from unittest import mock
 
-from django.dispatch import Signal, receiver
-from django.dispatch.dispatcher import _make_id
-from django.test import SimpleTestCase
-from django.test.utils import garbage_collect, override_settings
+from dorm.dispatch import Signal, receiver
+from dorm.dispatch.dispatcher import _make_id
+from dorm.test import SimpleTestCase
+from dorm.test.utils import garbage_collect, override_settings
 
 
 def receiver_1_arg(val, **kwargs):
@@ -115,7 +115,7 @@ class DispatcherTests(SimpleTestCase):
         def second_receiver(attempt, **kwargs):
             return attempt
 
-        with mock.patch("django.dispatch.dispatcher._make_id", make_id):
+        with mock.patch("dorm.dispatch.dispatcher._make_id", make_id):
             sender = Sender()
             signal.connect(first_receiver, sender)
             result = signal.send(sender, attempt="first")
@@ -203,7 +203,7 @@ class DispatcherTests(SimpleTestCase):
 
         a_signal.connect(fails)
         try:
-            with self.assertLogs("django.dispatch", "ERROR") as cm:
+            with self.assertLogs("dorm.dispatch", "ERROR") as cm:
                 result = a_signal.send_robust(sender=self, val="test")
             err = result[0][1]
             self.assertIsInstance(err, ValueError)

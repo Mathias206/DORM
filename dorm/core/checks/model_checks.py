@@ -1,0 +1,190 @@
+import inspect
+from collections import defaultdict
+from itertools import chain
+
+from dorm.apps import apps
+from dorm.conf import settings
+from dorm.core.checks import Error, Tags, Warning, register
+
+
+@register(Tags.models)
+def check_all_models(app_configs, **kwargs):
+    db_table_models = defaultdict(list)
+    indexes = defaultdict(list)
+    constraints = defaultdict(list)
+    errors = []
+    if app_configs is None:
+        models = apps.get_models()
+    else:
+        models = chain.from_iterable(
+            app_config.get_models() for app_config in app_configs
+        )
+    for model in models:
+        if model._meta.managed and not model._meta.proxy:
+            db_table_models[model._meta.db_table].append(model._meta.label)
+        if not inspect.ismethod(model.check):
+            errors.append(
+                Error(
+                    "The '%s.check()' class method is currently overridden by %r."
+                    % (model.__name__, model.check),
+                    obj=model,
+                    id="models.E020",
+                )
+            )
+        else:
+            errors.extend(model.check(**kwargs))
+        for model_index in model._meta.indexes:
+            indexes[model_index.name].append(model._meta.label)
+        for model_constraint in model._meta.constraints:
+            constraints[model_constraint.name].append(model._meta.label)
+    if settings.DATABASE_ROUTERS:
+        error_class, error_id = Warning, "models.W035"
+        error_hint = (
+            "You have configured settings.DATABASE_ROUTERS. Verify that %s "
+            "are correctly routed to separate databases."
+        )
+    else:
+        error_class, error_id = Error, "models.E028"
+        error_hint = None
+    for db_table, model_labels in db_table_models.items():
+        if len(model_labels) != 1:
+            model_labels_str = ", ".join(model_labels)
+            errors.append(
+                error_class(
+                    "db_table '%s' is used by multiple models: %s."
+                    % (db_table, model_labels_str),
+                    obj=db_table,
+                    hint=(error_hint % model_labels_str) if error_hint else None,
+                    id=error_id,
+                )
+            )
+    for index_name, model_labels in indexes.items():
+        if len(model_labels) > 1:
+            model_labels = set(model_labels)
+            errors.append(
+                Error(
+                    "index name '%s' is not unique %s %s."
+                    % (
+                        index_name,
+                        "for model" if len(model_labels) == 1 else "among models:",
+                        ", ".join(sorted(model_labels)),
+                    ),
+                    id="models.E029" if len(model_labels) == 1 else "models.E030",
+                ),
+            )
+    for constraint_name, model_labels in constraints.items():
+        if len(model_labels) > 1:
+            model_labels = set(model_labels)
+            errors.append(
+                Error(
+                    "constraint name '%s' is not unique %s %s."
+                    % (
+                        constraint_name,
+                        "for model" if len(model_labels) == 1 else "among models:",
+                        ", ".join(sorted(model_labels)),
+                    ),
+                    id="models.E031" if len(model_labels) == 1 else "models.E032",
+                ),
+            )
+    return errors
+
+
+def _check_lazy_references(apps, ignore=None):
+    """
+    Ensure all lazy (i.e. string) model references have been resolved.
+
+    Lazy references are used throughout Django, primarily in related fields.
+    Identify those common cases and provide more helpful error messages for them.
+
+    The ignore parameter is used by StateApps to exclude swappable models from
+    this check.
+    """
+    pending_models = set(apps._pending_operations) - (ignore or set())
+
+    # Short circuit if there aren't any errors.
+    if not pending_models:
+        return []
+
+    def extract_operation(obj):
+        """
+        Take a callable found in Apps._pending_operations and identify the
+        original callable passed to Apps.lazy_model_operation(). If that
+        callable was a partial, return the inner, non-partial function and
+        any arguments and keyword arguments that were supplied with it.
+
+        obj is a callback defined locally in Apps.lazy_model_operation() and
+        annotated there with a `func` attribute so as to imitate a partial.
+        """
+        operation, args, keywords = obj, [], {}
+        while hasattr(operation, "func"):
+            args.extend(getattr(operation, "args", []))
+            keywords.update(getattr(operation, "keywords", {}))
+            operation = operation.func
+        return operation, args, keywords
+
+    def app_model_error(model_key):
+        try:
+            apps.get_app_config(model_key[0])
+            model_error = "app '%s' doesn't provide model '%s'" % model_key
+        except LookupError:
+            model_error = "app '%s' isn't installed" % model_key[0]
+        return model_error
+
+    # Here are several functions which return CheckMessage instances for the
+    # most common usages of lazy operations throughout Django. These functions
+    # take the model that was being waited on as an (app_label, modelname)
+    # pair, the original lazy function, and its positional and keyword args as
+    # determined by extract_operation().
+
+    def field_error(model_key, func, args, keywords):
+        error_msg = (
+            "The field %(field)s was declared with a lazy reference "
+            "to '%(model)s', but %(model_error)s."
+        )
+        params = {
+            "model": ".".join(model_key),
+            "field": keywords["field"],
+            "model_error": app_model_error(model_key),
+        }
+        return Error(error_msg % params, obj=keywords["field"], id="fields.E307")
+
+    def default_error(model_key, func, args, keywords):
+        error_msg = (
+            "%(op)s contains a lazy reference to %(model)s, but %(model_error)s."
+        )
+        params = {
+            "op": func,
+            "model": ".".join(model_key),
+            "model_error": app_model_error(model_key),
+        }
+        return Error(error_msg % params, obj=func, id="models.E022")
+
+    # Maps common uses of lazy operations to corresponding error functions
+    # defined above. If a key maps to None, no error will be produced.
+    # default_error() will be used for usages that don't appear in this dict.
+    known_lazy = {
+        ("dorm.db.models.fields.related", "resolve_related_class"): field_error,
+        ("dorm.db.models.fields.related", "set_managed"): None,
+    }
+
+    def build_error(model_key, func, args, keywords):
+        key = (func.__module__, func.__name__)
+        error_fn = known_lazy.get(key, default_error)
+        return error_fn(model_key, func, args, keywords) if error_fn else None
+
+    return sorted(
+        filter(
+            None,
+            (
+                build_error(model_key, *extract_operation(func))
+                for model_key in pending_models
+                for func in apps._pending_operations[model_key]
+            ),
+        ),
+        key=lambda error: error.msg,
+    )
+
+
+@register(Tags.models)
+def check_lazy_references(app_configs, **kwargs):
+    return _check_lazy_references(apps)

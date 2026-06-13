@@ -5,16 +5,16 @@ import unittest
 from itertools import chain
 from operator import attrgetter
 
-from django.core.exceptions import EmptyResultSet, FieldError, FullResultSet
-from django.db import DEFAULT_DB_ALIAS, connection
-from django.db.models import CharField, Count, Exists, F, Max, OuterRef, Q
-from django.db.models.expressions import RawSQL
-from django.db.models.functions import ExtractYear, Length, LTrim
-from django.db.models.sql.constants import LOUTER
-from django.db.models.sql.where import AND, OR, NothingNode, WhereNode
-from django.test import SimpleTestCase, TestCase, skipUnlessDBFeature
-from django.test.utils import CaptureQueriesContext, ignore_warnings, register_lookup
-from django.utils.deprecation import RemovedInDjango70Warning
+from dorm.core.exceptions import EmptyResultSet, FieldError, FullResultSet
+from dorm.db import DEFAULT_DB_ALIAS, connection
+from dorm.db.models import CharField, Count, Exists, F, Max, OuterRef, Q
+from dorm.db.models.expressions import RawSQL
+from dorm.db.models.functions import ExtractYear, Length, LTrim
+from dorm.db.models.sql.constants import LOUTER
+from dorm.db.models.sql.where import AND, OR, NothingNode, WhereNode
+from dorm.test import SimpleTestCase, TestCase, skipUnlessDBFeature
+from dorm.test.utils import CaptureQueriesContext, ignore_warnings, register_lookup
+from dorm.utils.deprecation import RemovedInDjango70Warning
 
 from .models import (
     FK1,

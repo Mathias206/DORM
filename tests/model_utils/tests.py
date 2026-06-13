@@ -1,5 +1,5 @@
-from django.db.models.utils import create_namedtuple_class
-from django.test import SimpleTestCase
+from dorm.db.models.utils import create_namedtuple_class
+from dorm.test import SimpleTestCase
 
 
 class NamedTupleClassTests(SimpleTestCase):

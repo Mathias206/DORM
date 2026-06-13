@@ -1,9 +1,9 @@
 from datetime import datetime
 
-from django.core.exceptions import FieldError
-from django.db import DEFAULT_DB_ALIAS, connection
-from django.db.models import BooleanField, CharField, F, Q
-from django.db.models.expressions import (
+from dorm.core.exceptions import FieldError
+from dorm.db import DEFAULT_DB_ALIAS, connection
+from dorm.db.models import BooleanField, CharField, F, Q
+from dorm.db.models.expressions import (
     Col,
     Exists,
     ExpressionWrapper,
@@ -11,14 +11,14 @@ from django.db.models.expressions import (
     RawSQL,
     Value,
 )
-from django.db.models.fields.related_lookups import RelatedIsNull
-from django.db.models.functions import Lower
-from django.db.models.lookups import Exact, GreaterThan, IsNull, LessThan
-from django.db.models.sql.constants import SINGLE
-from django.db.models.sql.query import JoinPromoter, Query, get_field_names_from_opts
-from django.db.models.sql.where import AND, OR
-from django.test import SimpleTestCase, TestCase, skipUnlessDBFeature
-from django.test.utils import register_lookup
+from dorm.db.models.fields.related_lookups import RelatedIsNull
+from dorm.db.models.functions import Lower
+from dorm.db.models.lookups import Exact, GreaterThan, IsNull, LessThan
+from dorm.db.models.sql.constants import SINGLE
+from dorm.db.models.sql.query import JoinPromoter, Query, get_field_names_from_opts
+from dorm.db.models.sql.where import AND, OR
+from dorm.test import SimpleTestCase, TestCase, skipUnlessDBFeature
+from dorm.test.utils import register_lookup
 
 from .models import Author, Item, ObjectC, Ranking
 

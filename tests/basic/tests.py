@@ -4,8 +4,8 @@ import time
 from datetime import datetime, timedelta
 from unittest import mock
 
-from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
-from django.db import (
+from dorm.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
+from dorm.db import (
     DEFAULT_DB_ALIAS,
     DatabaseError,
     connection,
@@ -13,18 +13,18 @@ from django.db import (
     models,
     transaction,
 )
-from django.db.models.functions import Now
-from django.db.models.manager import BaseManager
-from django.db.models.query import MAX_GET_RESULTS, EmptyQuerySet
-from django.test import (
+from dorm.db.models.functions import Now
+from dorm.db.models.manager import BaseManager
+from dorm.db.models.query import MAX_GET_RESULTS, EmptyQuerySet
+from dorm.test import (
     SimpleTestCase,
     TestCase,
     TransactionTestCase,
     skipUnlessDBFeature,
 )
-from django.test.utils import CaptureQueriesContext
-from django.utils.connection import ConnectionDoesNotExist
-from django.utils.translation import gettext_lazy
+from dorm.test.utils import CaptureQueriesContext
+from dorm.utils.connection import ConnectionDoesNotExist
+from dorm.utils.translation import gettext_lazy
 
 from .models import (
     Article,

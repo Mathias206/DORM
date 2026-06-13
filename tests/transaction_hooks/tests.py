@@ -1,7 +1,7 @@
 from functools import partial
 
-from django.db import connection, transaction
-from django.test import TransactionTestCase, skipUnlessDBFeature
+from dorm.db import connection, transaction
+from dorm.test import TransactionTestCase, skipUnlessDBFeature
 
 from .models import Thing
 
@@ -49,7 +49,7 @@ class TestConnectionOnCommit(TransactionTestCase):
         def robust_callback():
             raise ForcedError("robust callback")
 
-        with self.assertLogs("django.db.backends.base", "ERROR") as cm:
+        with self.assertLogs("dorm.db.backends.base", "ERROR") as cm:
             transaction.on_commit(robust_callback, robust=True)
             self.do(1)
 
@@ -71,7 +71,7 @@ class TestConnectionOnCommit(TransactionTestCase):
 
         robust_callback_partial = partial(robust_callback)
 
-        with self.assertLogs("django.db.backends.base", "ERROR") as cm:
+        with self.assertLogs("dorm.db.backends.base", "ERROR") as cm:
             transaction.on_commit(robust_callback_partial, robust=True)
             self.do(1)
 
@@ -91,7 +91,7 @@ class TestConnectionOnCommit(TransactionTestCase):
         def robust_callback():
             raise ForcedError("robust callback")
 
-        with self.assertLogs("django.db.backends", "ERROR") as cm:
+        with self.assertLogs("dorm.db.backends", "ERROR") as cm:
             with transaction.atomic():
                 transaction.on_commit(robust_callback, robust=True)
                 self.do(1)
@@ -114,7 +114,7 @@ class TestConnectionOnCommit(TransactionTestCase):
 
         robust_callback_partial = partial(robust_callback)
 
-        with self.assertLogs("django.db.backends", "ERROR") as cm:
+        with self.assertLogs("dorm.db.backends", "ERROR") as cm:
             with transaction.atomic():
                 transaction.on_commit(robust_callback_partial, robust=True)
                 self.do(1)

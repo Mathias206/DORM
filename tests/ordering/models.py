@@ -13,7 +13,7 @@ The ordering attribute is not required. If you leave it off, ordering will be
 undefined -- not random, just undefined.
 """
 
-from django.db import models
+from dorm.db import models
 
 
 class Author(models.Model):

@@ -3,11 +3,11 @@
 from datetime import datetime
 
 import pytest
-from django.db.models.sql.constants import MULTI, ROW_COUNT
-from django.db.models.sql.subqueries import DeleteQuery, InsertQuery, UpdateQuery
-from django.db.models.query_utils import Q
+from dorm.db.models.sql.constants import MULTI, ROW_COUNT
+from dorm.db.models.sql.subqueries import DeleteQuery, InsertQuery, UpdateQuery
+from dorm.db.models.query_utils import Q
 
-from django.db.async_orm import AsyncDatabase
+from dorm.db.async_orm import AsyncDatabase
 from tests_ours.models import Author, Book
 
 

@@ -5,7 +5,7 @@ import unittest.mock
 import warnings
 from datetime import datetime
 
-from django.core.paginator import (
+from dorm.core.paginator import (
     AsyncPaginator,
     BasePaginator,
     EmptyPage,
@@ -14,8 +14,8 @@ from django.core.paginator import (
     Paginator,
     UnorderedObjectListWarning,
 )
-from django.test import SimpleTestCase, TestCase
-from django.utils.deprecation import RemovedInDjango70Warning
+from dorm.test import SimpleTestCase, TestCase
+from dorm.utils.deprecation import RemovedInDjango70Warning
 
 from .custom import AsyncValidAdjacentNumsPaginator, ValidAdjacentNumsPaginator
 from .models import Article

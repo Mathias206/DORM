@@ -4,8 +4,8 @@ from unittest import mock
 
 from .routers import TestRouter
 
-from django.core.exceptions import FieldError
-from django.db import (
+from dorm.core.exceptions import FieldError
+from dorm.db import (
     DatabaseError,
     NotSupportedError,
     connection,
@@ -13,15 +13,15 @@ from django.db import (
     router,
     transaction,
 )
-from django.db.models import F, Value
-from django.db.models.functions import Concat
-from django.test import (
+from dorm.db.models import F, Value
+from dorm.db.models.functions import Concat
+from dorm.test import (
     TransactionTestCase,
     override_settings,
     skipIfDBFeature,
     skipUnlessDBFeature,
 )
-from django.test.utils import CaptureQueriesContext
+from dorm.test.utils import CaptureQueriesContext
 
 from .models import (
     City,

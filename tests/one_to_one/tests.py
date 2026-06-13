@@ -1,7 +1,7 @@
-from django.core.exceptions import FieldFetchBlocked
-from django.db import IntegrityError, connection, transaction
-from django.db.models import FETCH_PEERS, RAISE
-from django.test import TestCase
+from dorm.core.exceptions import FieldFetchBlocked
+from dorm.db import IntegrityError, connection, transaction
+from dorm.db.models import FETCH_PEERS, RAISE
+from dorm.test import TestCase
 
 from .models import (
     Bar,

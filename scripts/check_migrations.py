@@ -9,10 +9,10 @@ def main():
     from runtests import ALWAYS_INSTALLED_APPS, get_apps_to_install, get_test_modules
 
     import django
-    from django.apps import apps
-    from django.core.management import call_command
+    from dorm.apps import apps
+    from dorm.core.management import call_command
 
-    django.setup()
+    dorm.setup()
 
     test_modules = list(get_test_modules(gis_enabled=False))
     installed_apps = list(ALWAYS_INSTALLED_APPS)

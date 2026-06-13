@@ -1,12 +1,12 @@
 import datetime
 from math import ceil
 
-from django.core.exceptions import FieldDoesNotExist
-from django.db import connection
-from django.db.models import F, IntegerField, Value
-from django.db.models.functions import Coalesce, Lower
-from django.db.utils import IntegrityError
-from django.test import TestCase, override_settings, skipUnlessDBFeature
+from dorm.core.exceptions import FieldDoesNotExist
+from dorm.db import connection
+from dorm.db.models import F, IntegerField, Value
+from dorm.db.models.functions import Coalesce, Lower
+from dorm.db.utils import IntegrityError
+from dorm.test import TestCase, override_settings, skipUnlessDBFeature
 
 from .models import (
     Article,

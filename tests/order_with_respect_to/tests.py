@@ -1,8 +1,8 @@
 from operator import attrgetter
 
-from django.db import models
-from django.test import SimpleTestCase, TestCase
-from django.test.utils import isolate_apps
+from dorm.db import models
+from dorm.test import SimpleTestCase, TestCase
+from dorm.test.utils import isolate_apps
 
 from .base_tests import BaseOrderWithRespectToTests
 from .models import Answer, Dimension, Entity, Post, Question

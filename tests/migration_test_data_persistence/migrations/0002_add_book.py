@@ -1,4 +1,4 @@
-from django.db import migrations, models
+from dorm.db import migrations, models
 
 
 def add_book(apps, schema_editor):

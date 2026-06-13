@@ -5,9 +5,9 @@ import sys
 from pathlib import Path
 from unittest import mock, skipUnless
 
-from django.db import connection
-from django.db.backends.mysql.client import DatabaseClient
-from django.test import SimpleTestCase
+from dorm.db import connection
+from dorm.db.backends.mysql.client import DatabaseClient
+from dorm.test import SimpleTestCase
 
 
 class MySqlDbshellCommandTestCase(SimpleTestCase):

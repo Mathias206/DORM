@@ -1,8 +1,8 @@
 from datetime import datetime
 from operator import attrgetter
 
-from django.core.exceptions import FieldError
-from django.db.models import (
+from dorm.core.exceptions import FieldError
+from dorm.db.models import (
     Case,
     CharField,
     Count,
@@ -17,8 +17,8 @@ from django.db.models import (
     Value,
     When,
 )
-from django.db.models.functions import Length, Upper
-from django.test import SimpleTestCase, TestCase
+from dorm.db.models.functions import Length, Upper
+from dorm.test import SimpleTestCase, TestCase
 
 from .models import (
     Article,

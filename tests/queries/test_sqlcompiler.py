@@ -1,10 +1,10 @@
 from unittest import mock
 
-from django.db import DEFAULT_DB_ALIAS, DatabaseError, connection
-from django.db.models.sql import Query
-from django.db.models.sql.compiler import SQLCompiler
-from django.test import TestCase
-from django.utils.deprecation import RemovedInDjango70Warning
+from dorm.db import DEFAULT_DB_ALIAS, DatabaseError, connection
+from dorm.db.models.sql import Query
+from dorm.db.models.sql.compiler import SQLCompiler
+from dorm.test import TestCase
+from dorm.utils.deprecation import RemovedInDjango70Warning
 
 from .models import Item
 

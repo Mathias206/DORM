@@ -1,5 +1,5 @@
 import pytest
-from django.db import connection, transaction
+from dorm.db import connection, transaction
 from .models import Author, Book, Tag
 
 _tables_created = False
@@ -53,7 +53,7 @@ def test_m2m(db):
 
 
 def test_annotate(db):
-    from django.db.models import Count
+    from dorm.db.models import Count
     a = Author.objects.create(name='Dave', email='dave@example.com')
     Book.objects.create(title='Book 1', author=a)
     Book.objects.create(title='Book 2', author=a)

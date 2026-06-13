@@ -4,8 +4,8 @@ Various complex queries that have been problematic in the past.
 
 import datetime
 
-from django.db import models
-from django.db.models.functions import Now
+from dorm.db import models
+from dorm.db.models.functions import Now
 
 
 class DumbCategory(models.Model):

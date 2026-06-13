@@ -12,19 +12,19 @@ import sys
 import warnings
 from pathlib import Path
 
-import django
-from django.apps import apps
-from django.conf import settings
-from django.core.exceptions import ImproperlyConfigured
-from django.db import connection, connections
-from django.test import TestCase, TransactionTestCase
-from django.test.runner import get_runner
-from django.test.utils import NullTimeKeeper, TimeKeeper
-from django.utils.deprecation import (
+import dorm
+from dorm.apps import apps
+from dorm.conf import settings
+from dorm.core.exceptions import ImproperlyConfigured
+from dorm.db import connection, connections
+from dorm.test import TestCase, TransactionTestCase
+from dorm.test.runner import get_runner
+from dorm.test.utils import NullTimeKeeper, TimeKeeper
+from dorm.utils.deprecation import (
     RemovedAfterNextVersionWarning,
     RemovedInNextVersionWarning,
 )
-from django.utils.functional import classproperty
+from dorm.utils.functional import classproperty
 
 
 # Make deprecation warnings errors to ensure no usage of deprecated features.
@@ -126,7 +126,7 @@ def setup_collect_tests(start_at, start_after, test_labels=None):
         "fields.W342",  # ForeignKey(unique=True) -> OneToOneField
     ]
 
-    django.setup()
+    dorm.setup()
 
     test_modules = list(
         get_filtered_test_modules(
@@ -200,13 +200,13 @@ def django_tests(
     durations=None,
 ):
     if verbosity >= 1:
-        print("Testing against Django installed in '%s'" % os.path.dirname(django.__file__))
+        print("Testing against Django installed in '%s'" % os.path.dirname(dorm.__file__))
 
     process_setup_args = (verbosity, start_at, start_after, test_labels)
     test_labels, state = setup_run_tests(*process_setup_args)
 
     if not hasattr(settings, "TEST_RUNNER"):
-        settings.TEST_RUNNER = "django.test.runner.DiscoverRunner"
+        settings.TEST_RUNNER = "dorm.test.runner.DiscoverRunner"
 
     TestRunner = get_runner(settings)
     test_runner = TestRunner(

@@ -1,8 +1,8 @@
 from unittest import mock
 
-from django.db import connection, transaction
-from django.db.models import FETCH_PEERS
-from django.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
+from dorm.db import connection, transaction
+from dorm.db.models import FETCH_PEERS
+from dorm.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
 
 from .models import (
     Article,

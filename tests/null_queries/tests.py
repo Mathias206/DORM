@@ -1,5 +1,5 @@
-from django.core.exceptions import FieldError
-from django.test import TestCase, skipUnlessDBFeature
+from dorm.core.exceptions import FieldError
+from dorm.test import TestCase, skipUnlessDBFeature
 
 from .models import Choice, Inner, OuterA, OuterB, Poll
 

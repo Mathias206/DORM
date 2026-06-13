@@ -1,5 +1,5 @@
-import django
-from django.conf import settings as django_settings
+import dorm
+from dorm.conf import settings as django_settings
 
 
 def pytest_configure():
@@ -14,4 +14,4 @@ def pytest_configure():
             USE_L10N=s.USE_L10N,
             INSTALLED_APPS=s.INSTALLED_APPS,
         )
-    django.setup()
+    dorm.setup()

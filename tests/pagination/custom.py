@@ -1,4 +1,4 @@
-from django.core.paginator import AsyncPage, AsyncPaginator, Page, Paginator
+from dorm.core.paginator import AsyncPage, AsyncPaginator, Page, Paginator
 
 
 class ValidAdjacentNumsPage(Page):

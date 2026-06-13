@@ -1,5 +1,5 @@
-from django.db.models import F, Sum
-from django.test import TestCase
+from dorm.db.models import F, Sum
+from dorm.test import TestCase
 
 from .models import Product, Stock
 

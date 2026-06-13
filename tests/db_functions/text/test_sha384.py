@@ -1,8 +1,8 @@
-from django.db import connection
-from django.db.models import CharField
-from django.db.models.functions import SHA384
-from django.test import TestCase
-from django.test.utils import register_lookup
+from dorm.db import connection
+from dorm.db.models import CharField
+from dorm.db.models.functions import SHA384
+from dorm.test import TestCase
+from dorm.test.utils import register_lookup
 
 from ..models import Author
 

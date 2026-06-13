@@ -1,5 +1,5 @@
-from django.db.models import Q
-from django.test import TestCase
+from dorm.db.models import Q
+from dorm.test import TestCase
 
 from .models import Issue, StringReferenceModel, User
 

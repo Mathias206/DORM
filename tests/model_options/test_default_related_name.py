@@ -1,5 +1,5 @@
-from django.core.exceptions import FieldError
-from django.test import TestCase
+from dorm.core.exceptions import FieldError
+from dorm.test import TestCase
 
 from .models.default_related_name import Author, Book, Editor
 

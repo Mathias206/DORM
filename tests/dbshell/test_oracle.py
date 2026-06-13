@@ -1,8 +1,8 @@
 from unittest import mock, skipUnless
 
-from django.db import connection
-from django.db.backends.oracle.client import DatabaseClient
-from django.test import SimpleTestCase
+from dorm.db import connection
+from dorm.db.backends.oracle.client import DatabaseClient
+from dorm.test import SimpleTestCase
 
 
 @skipUnless(connection.vendor == "oracle", "Requires oracledb to be installed")

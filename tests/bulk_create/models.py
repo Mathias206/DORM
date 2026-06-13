@@ -2,9 +2,9 @@ import datetime
 import uuid
 from decimal import Decimal
 
-from django.db import models
-from django.db.models.functions import Now
-from django.utils import timezone
+from dorm.db import models
+from dorm.db.models.functions import Now
+from dorm.utils import timezone
 
 try:
     from PIL import Image

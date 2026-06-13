@@ -1,8 +1,8 @@
 import os
 
-from django.apps import apps
-from django.test import SimpleTestCase
-from django.test.utils import extend_sys_path
+from dorm.apps import apps
+from dorm.test import SimpleTestCase
+from dorm.test.utils import extend_sys_path
 
 
 class EggLoadingTest(SimpleTestCase):

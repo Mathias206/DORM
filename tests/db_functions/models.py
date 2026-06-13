@@ -2,7 +2,7 @@
 Tests for built in Function expressions.
 """
 
-from django.db import models
+from dorm.db import models
 
 
 class Author(models.Model):

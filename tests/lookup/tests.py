@@ -4,9 +4,9 @@ from math import ceil
 from operator import attrgetter
 from unittest import mock
 
-from django.core.exceptions import FieldError
-from django.db import connection, models
-from django.db.models import (
+from dorm.core.exceptions import FieldError
+from dorm.db import connection, models
+from dorm.db.models import (
     BooleanField,
     Case,
     Exists,
@@ -19,9 +19,9 @@ from django.db.models import (
     Value,
     When,
 )
-from django.db.models.expressions import RawSQL
-from django.db.models.functions import Abs, Cast, Length, Substr
-from django.db.models.lookups import (
+from dorm.db.models.expressions import RawSQL
+from dorm.db.models.functions import Abs, Cast, Length, Substr
+from dorm.db.models.lookups import (
     Exact,
     GreaterThan,
     GreaterThanOrEqual,
@@ -30,9 +30,9 @@ from django.db.models.lookups import (
     LessThan,
     LessThanOrEqual,
 )
-from django.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
-from django.test.utils import ignore_warnings, isolate_apps, register_lookup
-from django.utils.deprecation import RemovedInDjango70Warning
+from dorm.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
+from dorm.test.utils import ignore_warnings, isolate_apps, register_lookup
+from dorm.utils.deprecation import RemovedInDjango70Warning
 
 from .models import (
     Article,

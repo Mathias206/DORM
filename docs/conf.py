@@ -123,7 +123,7 @@ copyright = "Django Software Foundation and contributors"
 version = "6.2"
 # The full version, including alpha/beta/rc tags.
 try:
-    from django import VERSION, get_version
+    from dorm import VERSION, get_version
 except ImportError:
     release = version
 else:
@@ -278,7 +278,7 @@ html_additional_pages = {}
 # Output file base name for HTML help builder.
 htmlhelp_basename = "Djangodoc"
 
-modindex_common_prefix = ["django."]
+modindex_common_prefix = ["dorm."]
 
 # Appended to every page
 rst_epilog = """
@@ -319,7 +319,7 @@ latex_elements = {
 latex_documents = [
     (
         "contents",
-        "django.tex",
+        "dorm.tex",
         "Django Documentation",
         "Django Software Foundation",
         "manual",

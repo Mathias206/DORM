@@ -1,8 +1,8 @@
 from itertools import chain
 
-from django.db.models import F, Sum
-from django.test import TestCase, skipUnlessDBFeature
-from django.utils.deprecation import RemovedInDjango70Warning
+from dorm.db.models import F, Sum
+from dorm.test import TestCase, skipUnlessDBFeature
+from dorm.utils.deprecation import RemovedInDjango70Warning
 
 from .models import Company, Employee, JSONFieldModel
 

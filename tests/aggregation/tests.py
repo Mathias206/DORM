@@ -5,9 +5,9 @@ from decimal import Decimal
 from itertools import chain
 from unittest import skipUnless
 
-from django.core.exceptions import FieldError
-from django.db import NotSupportedError, connection
-from django.db.models import (
+from dorm.core.exceptions import FieldError
+from dorm.db import NotSupportedError, connection
+from dorm.db.models import (
     AnyValue,
     Avg,
     BitAnd,
@@ -39,9 +39,9 @@ from django.db.models import (
     When,
     Window,
 )
-from django.db.models.expressions import Func, RawSQL
-from django.db.models.fields.json import KeyTextTransform
-from django.db.models.functions import (
+from dorm.db.models.expressions import Func, RawSQL
+from dorm.db.models.fields.json import KeyTextTransform
+from dorm.db.models.functions import (
     Cast,
     Coalesce,
     Concat,
@@ -54,10 +54,10 @@ from django.db.models.functions import (
     TruncDate,
     TruncHour,
 )
-from django.test import TestCase
-from django.test.testcases import skipIfDBFeature, skipUnlessDBFeature
-from django.test.utils import Approximate, CaptureQueriesContext
-from django.utils import timezone
+from dorm.test import TestCase
+from dorm.test.testcases import skipIfDBFeature, skipUnlessDBFeature
+from dorm.test.utils import Approximate, CaptureQueriesContext
+from dorm.utils import timezone
 
 from .models import Author, Book, Employee, Publisher, Store
 

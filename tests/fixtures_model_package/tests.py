@@ -1,6 +1,6 @@
-from django.core import management
-from django.core.management import CommandError
-from django.test import TestCase
+from dorm.core import management
+from dorm.core.management import CommandError
+from dorm.test import TestCase
 
 from .models import Article
 

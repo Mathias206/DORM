@@ -1,8 +1,8 @@
-from django.db import connection
-from django.db.models import CharField, Value
-from django.db.models.functions import Length, Reverse, Trim
-from django.test import TestCase
-from django.test.utils import register_lookup
+from dorm.db import connection
+from dorm.db.models import CharField, Value
+from dorm.db.models.functions import Length, Reverse, Trim
+from dorm.test import TestCase
+from dorm.test.utils import register_lookup
 
 from ..models import Author
 

@@ -2,10 +2,10 @@ import json
 import unittest
 import xml.etree.ElementTree
 
-from django.db import NotSupportedError, connection, transaction
-from django.db.models import Count
-from django.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
-from django.test.utils import CaptureQueriesContext
+from dorm.db import NotSupportedError, connection, transaction
+from dorm.db.models import Count
+from dorm.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
+from dorm.test.utils import CaptureQueriesContext
 
 from .models import Tag
 

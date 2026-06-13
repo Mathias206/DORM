@@ -1,4 +1,4 @@
-from django.db import models
+from dorm.db import models
 
 
 class Site(models.Model):

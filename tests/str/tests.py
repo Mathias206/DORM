@@ -1,8 +1,8 @@
 import datetime
 
-from django.db import models
-from django.test import TestCase
-from django.test.utils import isolate_apps
+from dorm.db import models
+from dorm.test import TestCase
+from dorm.test.utils import isolate_apps
 
 from .models import InternationalArticle
 

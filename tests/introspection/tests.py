@@ -1,6 +1,6 @@
-from django.db import DatabaseError, connection
-from django.db.models import DB_CASCADE, DB_SET_DEFAULT, DB_SET_NULL, DO_NOTHING, Index
-from django.test import TransactionTestCase, skipUnlessDBFeature
+from dorm.db import DatabaseError, connection
+from dorm.db.models import DB_CASCADE, DB_SET_DEFAULT, DB_SET_NULL, DO_NOTHING, Index
+from dorm.test import TransactionTestCase, skipUnlessDBFeature
 
 from .models import (
     Article,

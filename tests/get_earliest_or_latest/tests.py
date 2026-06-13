@@ -1,8 +1,8 @@
 from datetime import datetime
 from unittest.mock import patch
 
-from django.db.models import Avg
-from django.test import TestCase
+from dorm.db.models import Avg
+from dorm.test import TestCase
 
 from .models import Article, Comment, IndexErrorArticle, OrderedArticle, Person
 

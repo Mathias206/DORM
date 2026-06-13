@@ -1,6 +1,6 @@
 import uuid
 
-from django.db import models
+from dorm.db import models
 
 
 class Article(models.Model):

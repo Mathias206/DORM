@@ -1,10 +1,10 @@
 import math
 from decimal import Decimal
 
-from django.db.models import DecimalField
-from django.db.models.functions import Degrees
-from django.test import TestCase
-from django.test.utils import register_lookup
+from dorm.db.models import DecimalField
+from dorm.db.models.functions import Degrees
+from dorm.test import TestCase
+from dorm.test.utils import register_lookup
 
 from ..models import DecimalModel, FloatModel, IntegerModel
 

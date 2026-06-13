@@ -2,7 +2,7 @@
 Testing signals before/after saving and deleting.
 """
 
-from django.db import models
+from dorm.db import models
 
 
 class Person(models.Model):

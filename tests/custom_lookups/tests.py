@@ -2,14 +2,14 @@ import time
 import unittest
 from datetime import date, datetime
 
-from django.core.exceptions import FieldError
-from django.db import connection, models
-from django.db.models.fields.related_lookups import RelatedGreaterThan
-from django.db.models.functions import Lower
-from django.db.models.lookups import EndsWith, StartsWith
-from django.test import SimpleTestCase, TestCase, override_settings
-from django.test.utils import register_lookup
-from django.utils import timezone
+from dorm.core.exceptions import FieldError
+from dorm.db import connection, models
+from dorm.db.models.fields.related_lookups import RelatedGreaterThan
+from dorm.db.models.functions import Lower
+from dorm.db.models.lookups import EndsWith, StartsWith
+from dorm.test import SimpleTestCase, TestCase, override_settings
+from dorm.test.utils import register_lookup
+from dorm.utils import timezone
 
 from .models import Article, Author, MySQLUnixTimestamp
 

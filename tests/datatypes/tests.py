@@ -1,6 +1,6 @@
 import datetime
 
-from django.test import TestCase, skipIfDBFeature
+from dorm.test import TestCase, skipIfDBFeature
 
 from .models import Donut, RumBaba
 

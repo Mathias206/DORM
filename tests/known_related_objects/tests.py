@@ -1,5 +1,5 @@
-from django.db.models import FilteredRelation
-from django.test import TestCase
+from dorm.db.models import FilteredRelation
+from dorm.test import TestCase
 
 from .models import Organiser, Pool, PoolStyle, Tournament
 
