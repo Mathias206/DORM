@@ -230,3 +230,7 @@ MIGRATION_MODULES = {}
 # serious issues like errors and criticals does not result in hiding the
 # message, but Django will not stop you from e.g. running server.
 SILENCED_SYSTEM_CHECKS = []
+# Append missing default settings needed by the ORM test suite.
+ABSOLUTE_URL_OVERRIDES = {}
+FIXTURE_DIRS = []
+SECRET_KEY_FALLBACKS = []

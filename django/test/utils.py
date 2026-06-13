@@ -1,5 +1,6 @@
 """Django test utilities (ORM-only subset)."""
 
+import gc
 import logging
 import os
 import sys
@@ -7,6 +8,7 @@ import time
 import warnings
 from collections import defaultdict
 from contextlib import contextmanager
+from io import StringIO
 from functools import wraps
 from inspect import iscoroutinefunction
 from unittest import TestCase, skipIf, skipUnless
@@ -16,6 +18,7 @@ from django.conf import UserSettingsHolder, settings
 from django.core.exceptions import ImproperlyConfigured
 from django.core.signals import setting_changed
 from django.db import DEFAULT_DB_ALIAS, connections
+from django.test import signals  # noqa: F401 - registers setting_changed receivers
 from django.utils.version import PYPY
 
 
@@ -123,6 +126,12 @@ class override_settings(TestContextDecorator):
         super().__init__()
 
     def enable(self):
+        if "INSTALLED_APPS" in self.options:
+            try:
+                apps.set_installed_apps(self.options["INSTALLED_APPS"])
+            except Exception:
+                apps.unset_installed_apps()
+                raise
         override = UserSettingsHolder(settings._wrapped)
         for key, new_value in self.options.items():
             setattr(override, key, new_value)
@@ -143,6 +152,8 @@ class override_settings(TestContextDecorator):
     def disable(self):
         settings._wrapped = self.wrapped
         del self.wrapped
+        if "INSTALLED_APPS" in self.options:
+            apps.unset_installed_apps()
         responses = []
         for key in self.options:
             new_value = getattr(settings, key, None)
@@ -377,6 +388,9 @@ class NullTimeKeeper:
     def timed(self, name):
         return _null_context()
 
+    def print_results(self):
+        pass
+
 
 class TimeKeeper:
     def __init__(self):
@@ -384,6 +398,13 @@ class TimeKeeper:
 
     def timed(self, name):
         return _TestTiming(self, name)
+
+    def print_results(self):
+        if self.records:
+            print("\nTimings")
+            print("=" * 40)
+            for name, elapsed in self.records:
+                print("%-40s %.4fs" % (name, elapsed))
 
 
 class _TestTiming:
@@ -434,7 +455,7 @@ class CaptureQueriesContext:
 
     @property
     def captured_queries(self):
-        return self.connection.queries_log[self.initial_queries : self.final_queries]
+        return self.connection.queries[self.initial_queries : self.final_queries]
 
     def __enter__(self):
         self.force_debug_cursor = self.connection.force_debug_cursor
@@ -463,7 +484,7 @@ class ignore_warnings(TestContextDecorator):
 
     def __init__(self, **kwargs):
         self.ignore_kwargs = kwargs
-        if "message" in self.ignore_kwargs or "category" in self.ignore_kwargs:
+        if "message" in self.ignore_kwargs or "module" in self.ignore_kwargs:
             self.filter_func = warnings.filterwarnings
         else:
             self.filter_func = warnings.simplefilter
@@ -478,30 +499,38 @@ class ignore_warnings(TestContextDecorator):
         self.catch_warnings.__exit__(*sys.exc_info())
 
 
-def isolate_apps(*apps_list, attr_name="installed_apps"):
-    """Decorator/context manager to temporarily install apps in isolation."""
-    from django.apps.registry import Apps
+class isolate_apps(TestContextDecorator):
+    """Decorator/context manager to register models in an isolated app registry."""
 
-    apps_list = tuple(apps_list)
+    def __init__(self, *installed_apps, **kwargs):
+        self.installed_apps = installed_apps
+        super().__init__(**kwargs)
 
-    class IsolatedApps(override_settings):
-        def __init__(self, apps_list):
-            self.apps_list = apps_list
-            super().__init__()
+    def enable(self):
+        from django.apps.registry import Apps
+        from django.db.models.options import Options
 
-        def enable(self):
-            self.old_apps = apps
-            new_apps = Apps(self.apps_list)
-            setattr(settings, attr_name, self.apps_list)
-            apps = new_apps
-            return new_apps
+        self.old_apps = Options.default_apps
+        apps = Apps(self.installed_apps)
+        Options.default_apps = apps
+        return apps
 
-        def disable(self):
-            global apps
-            apps = self.old_apps
-            setattr(settings, attr_name, self.old_apps.installed_apps)
+    def disable(self):
+        from django.db.models.options import Options
 
-    return IsolatedApps(apps_list)
+        Options.default_apps = self.old_apps
+
+
+@contextmanager
+def register_lookup(field, *lookups, lookup_name=None):
+    """Context manager to temporarily register lookups on a model field."""
+    try:
+        for lookup in lookups:
+            field.register_lookup(lookup, lookup_name)
+        yield
+    finally:
+        for lookup in lookups:
+            field._unregister_lookup(lookup, lookup_name)
 
 
 def override_system_checks(new_checks):
@@ -525,6 +554,58 @@ def override_system_checks(new_checks):
             registry.registered_checks = self.old_checks
 
     return OverrideSystemChecks(new_checks)
+
+
+def garbage_collect():
+    """Force garbage collection."""
+    gc.collect()
+    if PYPY:
+        gc.collect()
+
+
+@contextmanager
+def extend_sys_path(*paths):
+    """Context manager to temporarily add paths to sys.path."""
+    _orig_sys_path = sys.path[:]
+    sys.path.extend(paths)
+    try:
+        yield
+    finally:
+        sys.path = _orig_sys_path
+
+
+@contextmanager
+def captured_output(stream_name):
+    """Return a context manager used by captured_stdout/stdin/stderr."""
+    orig_stdout = getattr(sys, stream_name)
+    setattr(sys, stream_name, StringIO())
+    try:
+        yield getattr(sys, stream_name)
+    finally:
+        setattr(sys, stream_name, orig_stdout)
+
+
+def captured_stdout():
+    return captured_output("stdout")
+
+
+def captured_stderr():
+    return captured_output("stderr")
+
+
+def captured_stdin():
+    return captured_output("stdin")
+
+
+@contextmanager
+def freeze_time(t):
+    """Context manager to temporarily freeze time.time()."""
+    _real_time = time.time
+    time.time = lambda: t
+    try:
+        yield
+    finally:
+        time.time = _real_time
 
 
 def tag(*tags):

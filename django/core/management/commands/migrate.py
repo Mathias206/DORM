@@ -4,6 +4,7 @@ from importlib import import_module
 
 from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError, no_translations
+from django.core.management.sql import emit_post_migrate_signal, emit_pre_migrate_signal
 from django.db import DEFAULT_DB_ALIAS, connections, router
 from django.db.backends.utils import truncate_name
 from django.db.migrations.autodetector import MigrationAutodetector
@@ -297,6 +298,15 @@ class Command(BaseCommand):
                     )
 
         pre_migrate_state = executor._create_project_state(with_applied_migrations=True)
+        pre_migrate_apps = pre_migrate_state.apps
+        emit_pre_migrate_signal(
+            self.verbosity,
+            self.interactive,
+            connection.alias,
+            stdout=self.stdout,
+            apps=pre_migrate_apps,
+            plan=plan,
+        )
 
         # Run the syncdb phase.
         if run_syncdb:
@@ -367,6 +377,16 @@ class Command(BaseCommand):
             [ModelState.from_model(apps.get_model(*model)) for model in model_keys]
         )
 
+        # Send the post_migrate signal, so individual apps can do whatever they
+        # need to do at this point.
+        emit_post_migrate_signal(
+            self.verbosity,
+            self.interactive,
+            connection.alias,
+            stdout=self.stdout,
+            apps=post_migrate_apps,
+            plan=plan,
+        )
 
     def migration_progress_callback(self, action, migration=None, fake=False):
         if self.verbosity >= 1:

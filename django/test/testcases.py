@@ -1,6 +1,7 @@
 """Django test case classes (ORM-only subset)."""
 
 import logging
+import re
 import sys
 import unittest
 from contextlib import contextmanager
@@ -15,6 +16,7 @@ from asgiref.sync import async_to_sync
 from django.apps import apps
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
+from django.core.signals import setting_changed
 from django.db import DEFAULT_DB_ALIAS, connection, connections, transaction
 from django.db.backends.base.base import NO_DB_ALIAS, BaseDatabaseWrapper
 from django.test.utils import (
@@ -57,6 +59,9 @@ class _DatabaseFailure:
 
 class SimpleTestCase(unittest.TestCase):
     databases = set()
+    _overridden_settings = None
+    _modified_settings = None
+    _pre_setup_ran_eagerly = False
     _disallowed_database_msg = (
         "Database %(operation)s to %(alias)r are not allowed in SimpleTestCase "
         "subclasses. Either subclass TestCase or TransactionTestCase to ensure "
@@ -166,7 +171,10 @@ class SimpleTestCase(unittest.TestCase):
 
         if not skipped:
             try:
-                self._pre_setup()
+                if self.__class__._pre_setup_ran_eagerly:
+                    self.__class__._pre_setup_ran_eagerly = False
+                else:
+                    self._pre_setup()
             except Exception:
                 if debug:
                     raise
@@ -185,15 +193,35 @@ class SimpleTestCase(unittest.TestCase):
                 result.addError(self, sys.exc_info())
                 return
 
-    def _pre_setup(self):
+    @classmethod
+    def _pre_setup(cls):
         pass
 
-    def _post_teardown(self):
+    @classmethod
+    def _post_teardown(cls):
         pass
 
     def settings(self, **kwargs):
         """Return a context manager or decorator to temporarily override settings."""
         return override_settings(**kwargs)
+
+    def assertRaisesMessage(self, expected_exception, expected_message, *args, **kwargs):
+        """Assert that expected_message is found in the message of a raised exception."""
+        return self.assertRaisesRegex(
+            expected_exception,
+            re.escape(expected_message),
+            *args,
+            **kwargs,
+        )
+
+    def assertWarnsMessage(self, expected_warning, expected_message, *args, **kwargs):
+        """Assert that expected_message is found in the message of a raised warning."""
+        return self.assertWarnsRegex(
+            expected_warning,
+            re.escape(expected_message),
+            *args,
+            **kwargs,
+        )
 
     def assertQuerySetEqual(self, qs, values, transform=None, ordered=True, msg=None):
         values = list(values)
@@ -217,6 +245,8 @@ class TransactionTestCase(SimpleTestCase):
     fixtures = None
     databases = {DEFAULT_DB_ALIAS}
     serialized_rollback = False
+    available_apps = None
+    _available_apps_calls_balanced = 0
 
     @classmethod
     def setUpClass(cls):
@@ -240,7 +270,32 @@ class TransactionTestCase(SimpleTestCase):
     @classmethod
     def _pre_setup(cls):
         super()._pre_setup()
-        cls._fixture_setup()
+        if cls.available_apps is not None:
+            apps.set_available_apps(cls.available_apps)
+            cls._available_apps_calls_balanced += 1
+            setting_changed.send(
+                sender=settings._wrapped.__class__,
+                setting="INSTALLED_APPS",
+                value=cls.available_apps,
+                enter=True,
+            )
+            for db_name in cls._databases_names(include_mirrors=False):
+                from django.core.management.sql import emit_post_migrate_signal
+
+                emit_post_migrate_signal(verbosity=0, interactive=False, db=db_name)
+        try:
+            cls._fixture_setup()
+        except Exception:
+            if cls.available_apps is not None:
+                apps.unset_available_apps()
+                cls._available_apps_calls_balanced -= 1
+                setting_changed.send(
+                    sender=settings._wrapped.__class__,
+                    setting="INSTALLED_APPS",
+                    value=settings.INSTALLED_APPS,
+                    enter=False,
+                )
+            raise
         for db_name in cls._databases_names(include_mirrors=False):
             connections[db_name].queries_log.clear()
 
@@ -268,9 +323,13 @@ class TransactionTestCase(SimpleTestCase):
             if cls.serialized_rollback and hasattr(
                 connections[db_name], "_test_serialized_contents"
             ):
+                if cls.available_apps is not None:
+                    apps.unset_available_apps()
                 connections[db_name].creation.deserialize_db_from_string(
                     connections[db_name]._test_serialized_contents
                 )
+                if cls.available_apps is not None:
+                    apps.set_available_apps(cls.available_apps)
 
             if cls.fixtures:
                 from django.core.management import call_command
@@ -288,18 +347,35 @@ class TransactionTestCase(SimpleTestCase):
                 for conn in connections.all(initialized_only=True):
                     conn.close()
         finally:
-            pass
+            if self.__class__.available_apps is not None:
+                apps.unset_available_apps()
+                self.__class__._available_apps_calls_balanced -= 1
+                setting_changed.send(
+                    sender=settings._wrapped.__class__,
+                    setting="INSTALLED_APPS",
+                    value=settings.INSTALLED_APPS,
+                    enter=False,
+                )
 
     def _fixture_teardown(self):
         for db_name in self._databases_names(include_mirrors=False):
             from django.core.management import call_command
 
+            inhibit_post_migrate = (
+                self.available_apps is not None
+                or (
+                    self.serialized_rollback
+                    and hasattr(connections[db_name], "_test_serialized_contents")
+                )
+            )
             call_command(
                 "flush",
                 verbosity=0,
                 interactive=False,
                 database=db_name,
                 reset_sequences=False,
+                allow_cascade=self.available_apps is not None,
+                inhibit_post_migrate=inhibit_post_migrate,
             )
 
     def assertNumQueries(self, num, func=None, *args, using=DEFAULT_DB_ALIAS, **kwargs):

@@ -2,7 +2,7 @@ import threading
 import time
 from unittest import mock
 
-from multiple_database.routers import TestRouter
+from .routers import TestRouter
 
 from django.core.exceptions import FieldError
 from django.db import (

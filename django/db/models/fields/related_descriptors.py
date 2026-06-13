@@ -73,7 +73,7 @@ from django.db import (
     router,
     transaction,
 )
-from django.db.models import Manager, Q, Window
+from django.db.models import Manager, Q, Window, signals
 from django.db.models.expressions import ColPairs
 from django.db.models.fields.tuple_lookups import TupleIn
 from django.db.models.functions import RowNumber
@@ -1353,8 +1353,29 @@ def create_forward_many_to_many_manager(superclass, rel, reverse):
         def _clear_base(self, using=None, raw=False):
             db = using or router.db_for_write(self.through, instance=self.instance)
             with transaction.atomic(using=db, savepoint=False):
+                signals.m2m_changed.send(
+                    sender=self.through,
+                    action="pre_clear",
+                    instance=self.instance,
+                    reverse=self.reverse,
+                    model=self.model,
+                    pk_set=None,
+                    using=db,
+                    raw=raw,
+                )
                 filters = self._build_remove_filters(super().get_queryset().using(db))
                 self.through._default_manager.using(db).filter(filters).delete()
+
+                signals.m2m_changed.send(
+                    sender=self.through,
+                    action="post_clear",
+                    instance=self.instance,
+                    reverse=self.reverse,
+                    model=self.model,
+                    pk_set=None,
+                    using=db,
+                    raw=raw,
+                )
 
         def clear(self):
             self._remove_prefetched_objects()
@@ -1543,7 +1564,9 @@ def create_forward_many_to_many_manager(superclass, rel, reverse):
             )
             # Don't send the signal when inserting duplicate data row
             # for symmetrical reverse entries.
-            must_send_signals = False
+            must_send_signals = (
+                self.reverse or source_field_name == self.source_field_name
+            ) and (signals.m2m_changed.has_listeners(self.through))
             # Fast addition through bulk insertion can only be performed
             # if no m2m_changed listeners are connected for self.through
             # as they require the added set of ids to be provided via
@@ -1595,6 +1618,17 @@ def create_forward_many_to_many_manager(superclass, rel, reverse):
                 source_field_name, target_field_name, db, target_ids
             )
             with transaction.atomic(using=db, savepoint=False):
+                if must_send_signals:
+                    signals.m2m_changed.send(
+                        sender=self.through,
+                        action="pre_add",
+                        instance=self.instance,
+                        reverse=self.reverse,
+                        model=self.model,
+                        pk_set=missing_target_ids,
+                        using=db,
+                        raw=raw,
+                    )
                 # Add the ones that aren't there already.
                 self.through._default_manager.using(db).bulk_create(
                     [
@@ -1609,6 +1643,18 @@ def create_forward_many_to_many_manager(superclass, rel, reverse):
                     ],
                     ignore_conflicts=can_ignore_conflicts,
                 )
+
+                if must_send_signals:
+                    signals.m2m_changed.send(
+                        sender=self.through,
+                        action="post_add",
+                        instance=self.instance,
+                        reverse=self.reverse,
+                        model=self.model,
+                        pk_set=missing_target_ids,
+                        using=db,
+                        raw=raw,
+                    )
 
         def _remove_items(
             self, source_field_name, target_field_name, *objs, using=None, raw=False
@@ -1631,6 +1677,17 @@ def create_forward_many_to_many_manager(superclass, rel, reverse):
 
             db = using or router.db_for_write(self.through, instance=self.instance)
             with transaction.atomic(using=db, savepoint=False):
+                # Send a signal to the other end if need be.
+                signals.m2m_changed.send(
+                    sender=self.through,
+                    action="pre_remove",
+                    instance=self.instance,
+                    reverse=self.reverse,
+                    model=self.model,
+                    pk_set=old_ids,
+                    using=db,
+                    raw=raw,
+                )
                 target_model_qs = super().get_queryset()
                 if target_model_qs._has_filters():
                     old_vals = target_model_qs.using(db).filter(
@@ -1640,5 +1697,16 @@ def create_forward_many_to_many_manager(superclass, rel, reverse):
                     old_vals = old_ids
                 filters = self._build_remove_filters(old_vals)
                 self.through._default_manager.using(db).filter(filters).delete()
+
+                signals.m2m_changed.send(
+                    sender=self.through,
+                    action="post_remove",
+                    instance=self.instance,
+                    reverse=self.reverse,
+                    model=self.model,
+                    pk_set=old_ids,
+                    using=db,
+                    raw=raw,
+                )
 
     return ManyRelatedManager

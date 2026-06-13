@@ -5,8 +5,11 @@ Django's standard crypto functions and utilities.
 import hashlib
 import hmac
 import secrets
+import warnings
 
+from django.utils.deprecation import RemovedInDjango70Warning
 from django.utils.encoding import force_bytes
+from django.utils.warnings import django_file_prefixes
 
 RANDOM_STRING_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
@@ -28,6 +31,43 @@ def get_random_string(length, allowed_chars=RANDOM_STRING_CHARS):
 def constant_time_compare(val1, val2):
     """Return True if the two strings are equal, False otherwise."""
     return secrets.compare_digest(force_bytes(val1), force_bytes(val2))
+
+
+class InvalidAlgorithm(ValueError):
+    """The requested algorithm was not found."""
+
+    pass
+
+
+def salted_hmac(key_salt, value, secret=None, *, algorithm=None):
+    """
+    Return the HMAC of 'value', using a key generated from key_salt and a
+    secret (which defaults to settings.SECRET_KEY).
+    """
+    if algorithm is None:
+        warnings.warn(
+            "The default argument for algorithm in salted_hmac() will change "
+            "from 'sha1' to 'sha256' in Django 7.0. Pass an explicit "
+            "algorithm to silence this warning.",
+            category=RemovedInDjango70Warning,
+            skip_file_prefixes=django_file_prefixes(),
+        )
+        algorithm = "sha1"
+    if secret is None:
+        from django.conf import settings
+
+        secret = settings.SECRET_KEY
+
+    key_salt = force_bytes(key_salt)
+    secret = force_bytes(secret)
+    try:
+        hasher = getattr(hashlib, algorithm)
+    except AttributeError as e:
+        raise InvalidAlgorithm(
+            "%r is not an algorithm accepted by the hashlib module." % algorithm
+        ) from e
+    key = hasher(key_salt + secret).digest()
+    return hmac.new(key, msg=force_bytes(value), digestmod=hasher)
 
 
 def pbkdf2(password, salt, iterations, dklen=0, digest=None):

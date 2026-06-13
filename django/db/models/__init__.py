@@ -58,6 +58,7 @@ from django.db.models.query import (
     prefetch_related_objects,
 )
 from django.db.models.query_utils import FilteredRelation, Q
+from django.db.models import signals
 
 # Imports that would create circular imports if sorted
 from django.db.models.base import DEFERRED, Model  # isort:skip

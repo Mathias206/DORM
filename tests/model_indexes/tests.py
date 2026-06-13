@@ -148,7 +148,7 @@ class SimpleIndexesTests(SimpleTestCase):
     def test_expressions_with_opclasses(self):
         msg = (
             "Index.opclasses cannot be used with expressions. Use "
-            "django.contrib.postgres.indexes.OpClass() instead."
+            "a custom functional index expression instead."
         )
         with self.assertRaisesMessage(ValueError, msg):
             models.Index(

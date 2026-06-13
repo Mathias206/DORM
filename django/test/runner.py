@@ -7,6 +7,7 @@ test execution should use pytest with a suitable conftest.
 
 import unittest
 
+from django.db import DEFAULT_DB_ALIAS
 from django.test.utils import setup_databases, teardown_databases
 
 
@@ -63,6 +64,9 @@ class DiscoverRunner:
         pass
 
     def setup_databases(self, **kwargs):
+        # Serialization of test DBs requires django.core.serializers, which is
+        # not part of the extracted ORM. Skip it unless explicitly requested.
+        kwargs.setdefault("serialized_aliases", [])
         return setup_databases(
             self.verbosity,
             self.interactive,
@@ -97,11 +101,38 @@ class DiscoverRunner:
             resultclass=resultclass,
         ).run(suite)
 
+    def get_databases(self, suite):
+        from django.db import connections
+
+        def _iter_tests(suite):
+            for test in suite:
+                if isinstance(test, unittest.TestSuite):
+                    yield from _iter_tests(test)
+                else:
+                    yield test
+
+        databases = {alias: False for alias in connections}
+        for test in _iter_tests(suite):
+            test_databases = getattr(test, "databases", None)
+            if test_databases == "__all__":
+                test_databases = set(connections)
+            for alias in test_databases or (DEFAULT_DB_ALIAS,):
+                databases[alias] = databases[alias] or bool(
+                    getattr(test, "serialized_rollback", False)
+                )
+        return databases
+
     def run_tests(self, test_labels, extra_tests=None, **kwargs):
+        from django.db import DEFAULT_DB_ALIAS, connections
+
         self.setup_test_environment()
-        old_config = self.setup_databases()
+        suite = self.build_suite(test_labels)
+        databases = self.get_databases(suite)
+        serialized_aliases = {
+            alias for alias, serialize in databases.items() if serialize
+        }
+        old_config = self.setup_databases(serialized_aliases=serialized_aliases)
         try:
-            suite = self.build_suite(test_labels)
             result = self.run_suite(suite)
         finally:
             self.teardown_databases(old_config)
