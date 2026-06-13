@@ -226,3 +226,96 @@ async def test_async_queryset_aiterator():
 
         names = [a.name async for a in Author.objects.aiterator(session)]
         assert names == [f"Author {i}" for i in range(5)]
+
+
+@pytest.mark.asyncio
+async def test_async_queryset_acreate():
+    async with _db().session() as session:
+        await _create_author_table(session)
+        author = await Author.objects.acreate(
+            session, name="Alice", email="alice@example.com"
+        )
+        assert author.pk == 1
+        assert author.name == "Alice"
+        fetched = await Author.objects.aget(session, pk=author.pk)
+        assert fetched.email == "alice@example.com"
+
+
+@pytest.mark.asyncio
+async def test_async_model_asave():
+    async with _db().session() as session:
+        await _create_author_table(session)
+        author = Author(name="Alice", email="alice@example.com")
+        await author.asave(session)
+        assert author.pk == 1
+
+        author.name = "Alicia"
+        await author.asave(session)
+        fetched = await Author.objects.aget(session, pk=author.pk)
+        assert fetched.name == "Alicia"
+
+
+@pytest.mark.asyncio
+async def test_async_queryset_abulk_create():
+    async with _db().session() as session:
+        await _create_author_table(session)
+        objs = [
+            Author(name="Alice", email="alice@example.com"),
+            Author(name="Bob", email="bob@example.com"),
+            Author(name="Carol", email="carol@example.com"),
+        ]
+        created = await Author.objects.abulk_create(session, objs)
+        assert len(created) == 3
+        assert {a.pk for a in created} == {1, 2, 3}
+        assert await Author.objects.acount(session) == 3
+
+
+@pytest.mark.asyncio
+async def test_async_queryset_aupdate():
+    async with _db().session() as session:
+        await _create_author_table(session)
+        pk = await _insert_author(session, "Alice", "alice@example.com")
+        updated = await Author.objects.filter(pk=pk).aupdate(
+            session, name="Alicia"
+        )
+        assert updated == 1
+        author = await Author.objects.aget(session, pk=pk)
+        assert author.name == "Alicia"
+
+
+@pytest.mark.asyncio
+async def test_async_queryset_adelete():
+    async with _db().session() as session:
+        await _create_author_table(session)
+        await _create_book_table(session)
+        pk = await _insert_author(session, "Alice", "alice@example.com")
+        deleted, _ = await Author.objects.filter(pk=pk).adelete(session)
+        assert deleted == 1
+        assert await Author.objects.acount(session) == 0
+
+
+@pytest.mark.asyncio
+async def test_async_model_adelete():
+    async with _db().session() as session:
+        await _create_author_table(session)
+        await _create_book_table(session)
+        author = await Author.objects.acreate(
+            session, name="Alice", email="alice@example.com"
+        )
+        await author.adelete(session)
+        assert author.pk is None
+        assert await Author.objects.acount(session) == 0
+
+
+@pytest.mark.asyncio
+async def test_async_model_arefresh_from_db():
+    async with _db().session() as session:
+        await _create_author_table(session)
+        author = await Author.objects.acreate(
+            session, name="Alice", email="alice@example.com"
+        )
+        await Author.objects.filter(pk=author.pk).aupdate(
+            session, name="Alicia"
+        )
+        await author.arefresh_from_db(session)
+        assert author.name == "Alicia"

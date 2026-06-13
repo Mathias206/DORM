@@ -45,6 +45,27 @@ class DeleteQuery(Query):
             )
         return num_deleted
 
+    async def ado_query(self, table, where, using, session):
+        self.alias_map = {table: self.alias_map[table]}
+        self.where = where
+        return await self.get_compiler(using=using).execute_sql_async(
+            ROW_COUNT, session=session
+        )
+
+    async def adelete_batch(self, pk_list, using, session):
+        num_deleted = 0
+        field = self.get_meta().pk
+        for offset in range(0, len(pk_list), GET_ITERATOR_CHUNK_SIZE):
+            self.clear_where()
+            self.add_filter(
+                f"{field.attname}__in",
+                pk_list[offset : offset + GET_ITERATOR_CHUNK_SIZE],
+            )
+            num_deleted += await self.ado_query(
+                self.get_meta().db_table, self.where, using=using, session=session
+            )
+        return num_deleted
+
 
 class UpdateQuery(Query):
     """An UPDATE SQL query."""
@@ -77,6 +98,17 @@ class UpdateQuery(Query):
                 "pk__in", pk_list[offset : offset + GET_ITERATOR_CHUNK_SIZE]
             )
             self.get_compiler(using).execute_sql(NO_RESULTS)
+
+    async def aupdate_batch(self, pk_list, values, using, session):
+        self.add_update_values(values)
+        for offset in range(0, len(pk_list), GET_ITERATOR_CHUNK_SIZE):
+            self.clear_where()
+            self.add_filter(
+                "pk__in", pk_list[offset : offset + GET_ITERATOR_CHUNK_SIZE]
+            )
+            await self.get_compiler(using).execute_sql_async(
+                NO_RESULTS, session=session
+            )
 
     def add_update_values(self, values):
         """

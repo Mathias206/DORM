@@ -801,8 +801,21 @@ class QuerySet(AltersData):
 
     create.alters_data = True
 
-    async def acreate(self, **kwargs):
-        return await sync_to_async(self.create)(**kwargs)
+    async def acreate(self, session, **kwargs):
+        reverse_one_to_one_fields = frozenset(kwargs).intersection(
+            self.model._meta._reverse_one_to_one_field_names
+        )
+        if reverse_one_to_one_fields:
+            raise ValueError(
+                "The following fields do not exist in this model: %s"
+                % ", ".join(reverse_one_to_one_fields)
+            )
+
+        obj = self.model(**kwargs)
+        self._for_write = True
+        await obj.asave(session, force_insert=True, using=self.db)
+        obj._state.fetch_mode = self._fetch_mode
+        return obj
 
     acreate.alters_data = True
 
@@ -1012,10 +1025,41 @@ class QuerySet(AltersData):
                     obj._order = group_next_order
                     group_next_orders[group_key] += 1
 
+    async def _handle_order_with_respect_to_async(self, session, objs):
+        if objs and (order_wrt := self.model._meta.order_with_respect_to):
+            get_filter_kwargs_for_object = order_wrt.get_filter_kwargs_for_object
+            attnames = list(get_filter_kwargs_for_object(objs[0]))
+            group_keys = set()
+            obj_groups = []
+            for obj in objs:
+                group_key = tuple(get_filter_kwargs_for_object(obj).values())
+                group_keys.add(group_key)
+                obj_groups.append((obj, group_key))
+            filters = [
+                Q.create(list(zip(attnames, group_key))) for group_key in group_keys
+            ]
+            next_orders = (
+                self.model._base_manager.using(self.db)
+                .filter(reduce(operator.or_, filters))
+                .values_list(*attnames)
+                .annotate(_order__max=Max("_order") + 1)
+            )
+            group_next_orders = dict.fromkeys(group_keys, 0)
+            rows = [row async for row in next_orders.aall(session)]
+            group_next_orders.update(
+                (tuple(group_key), next_order) for *group_key, next_order in rows
+            )
+            for obj, group_key in obj_groups:
+                if getattr(obj, "_order", None) is None:
+                    group_next_order = group_next_orders[group_key]
+                    obj._order = group_next_order
+                    group_next_orders[group_key] += 1
+
     bulk_create.alters_data = True
 
     async def abulk_create(
         self,
+        session,
         objs,
         batch_size=None,
         ignore_conflicts=False,
@@ -1023,14 +1067,73 @@ class QuerySet(AltersData):
         update_fields=None,
         unique_fields=None,
     ):
-        return await sync_to_async(self.bulk_create)(
-            objs=objs,
-            batch_size=batch_size,
-            ignore_conflicts=ignore_conflicts,
-            update_conflicts=update_conflicts,
-            update_fields=update_fields,
-            unique_fields=unique_fields,
+        if batch_size is not None and batch_size <= 0:
+            raise ValueError("Batch size must be a positive integer.")
+        for parent in self.model._meta.all_parents:
+            if parent._meta.concrete_model is not self.model._meta.concrete_model:
+                raise ValueError("Can't bulk create a multi-table inherited model")
+        if not objs:
+            return objs
+        opts = self.model._meta
+        if unique_fields:
+            unique_fields = [
+                self.model._meta.get_field(opts.pk.name if name == "pk" else name)
+                for name in unique_fields
+            ]
+        if update_fields:
+            update_fields = [self.model._meta.get_field(name) for name in update_fields]
+        on_conflict = await sync_to_async(self._check_bulk_create_options)(
+            ignore_conflicts,
+            update_conflicts,
+            update_fields,
+            unique_fields,
         )
+        self._for_write = True
+        fields = [f for f in opts.concrete_fields if not f.generated]
+        objs = list(objs)
+        objs_with_pk, objs_without_pk = self._prepare_for_bulk_create(objs)
+        async with session.atomic():
+            await self._handle_order_with_respect_to_async(session, objs)
+            if objs_with_pk:
+                returned_columns = await self._batched_insert_async(
+                    session,
+                    objs_with_pk,
+                    fields,
+                    batch_size,
+                    on_conflict=on_conflict,
+                    update_fields=update_fields,
+                    unique_fields=unique_fields,
+                )
+                for obj_with_pk, results in zip(objs_with_pk, returned_columns):
+                    for result, field in zip(results, opts.db_returning_fields):
+                        setattr(obj_with_pk, field.attname, result)
+                for obj_with_pk in objs_with_pk:
+                    obj_with_pk._state.adding = False
+                    obj_with_pk._state.db = self.db
+            if objs_without_pk:
+                fields = [f for f in fields if not isinstance(f, AutoField)]
+                returned_columns = await self._batched_insert_async(
+                    session,
+                    objs_without_pk,
+                    fields,
+                    batch_size,
+                    on_conflict=on_conflict,
+                    update_fields=update_fields,
+                    unique_fields=unique_fields,
+                )
+
+                def can_return_rows():
+                    return connections[self.db].features.can_return_rows_from_bulk_insert
+
+                if await sync_to_async(can_return_rows)() and on_conflict is None:
+                    assert len(returned_columns) == len(objs_without_pk)
+                for obj_without_pk, results in zip(objs_without_pk, returned_columns):
+                    for result, field in zip(results, opts.db_returning_fields):
+                        setattr(obj_without_pk, field.attname, result)
+                    obj_without_pk._state.adding = False
+                    obj_without_pk._state.db = self.db
+
+        return objs
 
     abulk_create.alters_data = True
 
@@ -1443,8 +1546,27 @@ class QuerySet(AltersData):
     delete.alters_data = True
     delete.queryset_only = True
 
-    async def adelete(self):
-        return await sync_to_async(self.delete)()
+    async def adelete(self, session):
+        self._not_support_combined_queries("delete")
+        if self.query.is_sliced:
+            raise TypeError("Cannot delete a query once a slice has been taken.")
+        if self.query.distinct_fields:
+            raise TypeError("Cannot call delete() after .distinct(*fields).")
+        if self._fields is not None:
+            raise TypeError("Cannot call delete() after .values() or .values_list().")
+
+        del_query = self._chain()
+        del_query._for_write = True
+        del_query.query.select_for_update = False
+        del_query.query.select_related = False
+        del_query.query.clear_ordering(force=True)
+
+        collector = Collector(using=del_query.db, origin=self)
+        await collector.acollect(session, del_query)
+        num_deleted, num_deleted_per_model = await collector.adelete(session)
+
+        self._result_cache = None
+        return num_deleted, num_deleted_per_model
 
     adelete.alters_data = True
     adelete.queryset_only = True
@@ -1459,6 +1581,18 @@ class QuerySet(AltersData):
         return query.get_compiler(using).execute_sql(ROW_COUNT)
 
     _raw_delete.alters_data = True
+
+    async def _raw_delete_async(self, session, using=None):
+        """Async version of _raw_delete."""
+        if using is None:
+            using = self.db
+        query = self.query.clone()
+        query.__class__ = sql.DeleteQuery
+        return await query.get_compiler(using).execute_sql_async(
+            ROW_COUNT, session=session
+        )
+
+    _raw_delete_async.alters_data = True
 
     def update(self, **kwargs):
         """
@@ -1504,8 +1638,43 @@ class QuerySet(AltersData):
 
     update.alters_data = True
 
-    async def aupdate(self, **kwargs):
-        return await sync_to_async(self.update)(**kwargs)
+    async def aupdate(self, session, **kwargs):
+        self._not_support_combined_queries("update")
+        if self.query.is_sliced:
+            raise TypeError("Cannot update a query once a slice has been taken.")
+        if self.query.distinct_fields:
+            raise TypeError("Cannot call update() after .distinct(*fields).")
+        self._for_write = True
+        query = self.query.chain(sql.UpdateQuery)
+        query.add_update_values(kwargs)
+
+        # Inline annotations in order_by(), if possible.
+        new_order_by = []
+        for col in query.order_by:
+            alias = col
+            descending = False
+            if isinstance(alias, str) and alias.startswith("-"):
+                alias = alias.removeprefix("-")
+                descending = True
+            if annotation := query.annotations.get(alias):
+                if getattr(annotation, "contains_aggregate", False):
+                    raise exceptions.FieldError(
+                        f"Cannot update when ordering by an aggregate: {annotation}"
+                    )
+                if descending:
+                    annotation = annotation.desc()
+                new_order_by.append(annotation)
+            else:
+                new_order_by.append(col)
+        query.order_by = tuple(new_order_by)
+
+        query.clear_select_clause()
+        async with session.atomic():
+            rows = await query.get_compiler(self.db).execute_sql_async(
+                ROW_COUNT, session=session
+            )
+        self._result_cache = None
+        return rows
 
     aupdate.alters_data = True
 
@@ -1529,6 +1698,27 @@ class QuerySet(AltersData):
 
     _update.alters_data = True
     _update.queryset_only = False
+
+    async def _update_async(self, session, values, returning_fields=None):
+        """Async version of _update."""
+        if self.query.is_sliced:
+            raise TypeError("Cannot update a query once a slice has been taken.")
+        query = self.query.chain(sql.UpdateQuery)
+        query.add_update_fields(values)
+        query.annotations = {}
+        self._result_cache = None
+        compiler = query.get_compiler(self.db)
+        if returning_fields is None:
+            return await compiler.execute_sql_async(ROW_COUNT, session=session)
+        if not returning_fields:
+            row_count = await compiler.execute_sql_async(
+                ROW_COUNT, session=session
+            )
+            return [()] * row_count
+        # Async returning-update is not implemented yet; fall back to sync.
+        return await sync_to_async(compiler.execute_returning_sql)(returning_fields)
+
+    _update_async.alters_data = True
 
     def exists(self):
         """
@@ -2237,6 +2427,34 @@ class QuerySet(AltersData):
     _insert.alters_data = True
     _insert.queryset_only = False
 
+    async def _insert_async(
+        self,
+        session,
+        objs,
+        fields,
+        returning_fields=None,
+        raw=False,
+        using=None,
+        on_conflict=None,
+        update_fields=None,
+        unique_fields=None,
+    ):
+        self._for_write = True
+        if using is None:
+            using = self.db
+        query = sql.InsertQuery(
+            self.model,
+            on_conflict=on_conflict,
+            update_fields=update_fields,
+            unique_fields=unique_fields,
+        )
+        query.insert_values(fields, objs, raw=raw)
+        return await query.get_compiler(using=using).execute_sql_async(
+            returning_fields, session=session
+        )
+
+    _insert_async.alters_data = True
+
     def _batched_insert(
         self,
         objs,
@@ -2271,6 +2489,50 @@ class QuerySet(AltersData):
             for item in batches:
                 inserted_rows.extend(
                     self._insert(
+                        item,
+                        fields=fields,
+                        using=self.db,
+                        on_conflict=on_conflict,
+                        update_fields=update_fields,
+                        unique_fields=unique_fields,
+                        returning_fields=returning_fields,
+                    )
+                )
+        return inserted_rows
+
+    async def _batched_insert_async(
+        self,
+        session,
+        objs,
+        fields,
+        batch_size,
+        on_conflict=None,
+        update_fields=None,
+        unique_fields=None,
+    ):
+        """Async helper for bulk_create()."""
+        using = self.db
+
+        def get_batch_size():
+            return max(connections[using].ops.bulk_batch_size(fields, objs), 1)
+
+        def get_returning_fields():
+            if connections[using].features.can_return_rows_from_bulk_insert and (
+                on_conflict is None or on_conflict == OnConflict.UPDATE
+            ):
+                return self.model._meta.db_returning_fields
+            return None
+
+        max_batch_size = await sync_to_async(get_batch_size)()
+        batch_size = min(batch_size, max_batch_size) if batch_size else max_batch_size
+        inserted_rows = []
+        returning_fields = await sync_to_async(get_returning_fields)()
+        batches = [objs[i : i + batch_size] for i in range(0, len(objs), batch_size)]
+        async with session.atomic():
+            for item in batches:
+                inserted_rows.extend(
+                    await self._insert_async(
+                        session,
                         item,
                         fields=fields,
                         using=self.db,

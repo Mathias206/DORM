@@ -3,8 +3,12 @@ from functools import partial, reduce
 from itertools import chain
 from operator import attrgetter, or_
 
+from asgiref.sync import sync_to_async
+
+from django.core.exceptions import SynchronousOnlyOperation
 from django.db import IntegrityError, connections, models, transaction
 from django.db.models import query_utils, signals, sql
+from django.db.models.sql.constants import GET_ITERATOR_CHUNK_SIZE
 
 
 class ProtectedError(IntegrityError):
@@ -257,9 +261,14 @@ class Collector:
         """
         Return the objs in suitably sized batches for the used connection.
         """
-        conn_batch_size = max(
-            connections[self.using].ops.bulk_batch_size(fields, objs), 1
-        )
+        try:
+            conn_batch_size = max(
+                connections[self.using].ops.bulk_batch_size(fields, objs), 1
+            )
+        except SynchronousOnlyOperation:
+            # Called from an async context where the synchronous connection
+            # cannot be accessed; use a conservative default batch size.
+            conn_batch_size = GET_ITERATOR_CHUNK_SIZE
         if len(objs) > conn_batch_size:
             return [
                 objs[i : i + conn_batch_size]
@@ -430,6 +439,145 @@ class Collector:
                         set(chain.from_iterable(restricted_objects.values())),
                     )
 
+    async def acollect(
+        self,
+        session,
+        objs,
+        source=None,
+        nullable=False,
+        collect_related=True,
+        source_attr=None,
+        reverse_dependency=False,
+        keep_parents=False,
+        fail_on_restricted=True,
+    ):
+        """Async version of collect()."""
+        if isinstance(objs, models.QuerySet):
+            objs = [obj async for obj in objs.aall(session)]
+
+        if self.can_fast_delete(objs):
+            self.fast_deletes.append(objs)
+            return
+        new_objs = self.add(
+            objs, source, nullable, reverse_dependency=reverse_dependency
+        )
+        if not new_objs:
+            return
+
+        model = new_objs[0].__class__
+
+        if not keep_parents:
+            concrete_model = model._meta.concrete_model
+            for ptr in concrete_model._meta.parents.values():
+                if ptr:
+                    parent_objs = [getattr(obj, ptr.name) for obj in new_objs]
+                    self.collect(
+                        parent_objs,
+                        source=model,
+                        source_attr=ptr.remote_field.related_name,
+                        collect_related=False,
+                        reverse_dependency=True,
+                        fail_on_restricted=False,
+                    )
+        if not collect_related:
+            return
+
+        model_fast_deletes = defaultdict(list)
+        protected_objects = defaultdict(list)
+        for related in get_candidate_relations_to_delete(model._meta):
+            if (
+                keep_parents
+                and related.model._meta.concrete_model in model._meta.all_parents
+            ):
+                continue
+            field = related.field
+            on_delete = field.remote_field.on_delete
+            if on_delete in SKIP_COLLECTION:
+                if self.force_collection and (
+                    forced_on_delete := getattr(on_delete, "forced_collector", None)
+                ):
+                    on_delete = forced_on_delete
+                else:
+                    continue
+            related_model = related.related_model
+            if self.can_fast_delete(related_model, from_field=field):
+                model_fast_deletes[related_model].append(field)
+                continue
+            batches = self.get_del_batches(new_objs, [field])
+            for batch in batches:
+                sub_objs = self.related_objects(related_model, [field], batch)
+                if not (
+                    sub_objs.query.select_related
+                    or self._has_signal_listeners(related_model)
+                ):
+                    referenced_fields = set(
+                        chain.from_iterable(
+                            (rf.attname for rf in rel.field.foreign_related_fields)
+                            for rel in get_candidate_relations_to_delete(
+                                related_model._meta
+                            )
+                        )
+                    )
+                    sub_objs = sub_objs.only(*tuple(referenced_fields))
+                has_sub_objs = getattr(
+                    on_delete, "lazy_sub_objs", False
+                ) or await sub_objs.aexists(session)
+                if has_sub_objs:
+                    # Materialize so sync on_delete handlers don't touch the DB.
+                    sub_objs = [obj async for obj in sub_objs.aall(session)]
+                    try:
+                        on_delete(self, field, sub_objs, self.using)
+                    except ProtectedError as error:
+                        key = "'%s.%s'" % (field.model.__name__, field.name)
+                        protected_objects[key] += error.protected_objects
+        if protected_objects:
+            raise ProtectedError(
+                "Cannot delete some instances of model %r because they are "
+                "referenced through protected foreign keys: %s."
+                % (
+                    model.__name__,
+                    ", ".join(protected_objects),
+                ),
+                set(chain.from_iterable(protected_objects.values())),
+            )
+        for related_model, related_fields in model_fast_deletes.items():
+            batches = self.get_del_batches(new_objs, related_fields)
+            for batch in batches:
+                sub_objs = self.related_objects(related_model, related_fields, batch)
+                self.fast_deletes.append(sub_objs)
+        for field in model._meta.private_fields:
+            if hasattr(field, "bulk_related_objects"):
+                sub_objs = field.bulk_related_objects(new_objs, self.using)
+                if isinstance(sub_objs, models.QuerySet):
+                    sub_objs = [obj async for obj in sub_objs.aall(session)]
+                self.collect(
+                    sub_objs, source=model, nullable=True, fail_on_restricted=False
+                )
+
+        if fail_on_restricted:
+            for related_model, instances in self.data.items():
+                self.clear_restricted_objects_from_set(related_model, instances)
+            for qs in self.fast_deletes:
+                self.clear_restricted_objects_from_queryset(qs.model, qs)
+            if self.restricted_objects.values():
+                restricted_objects = defaultdict(list)
+                for related_model, fields in self.restricted_objects.items():
+                    for field, objs in fields.items():
+                        if objs:
+                            key = "'%s.%s'" % (related_model.__name__, field.name)
+                            restricted_objects[key] += objs
+                if restricted_objects:
+                    raise RestrictedError(
+                        "Cannot delete some instances of model %r because "
+                        "they are referenced through restricted foreign keys: "
+                        "%s."
+                        % (
+                            model.__name__,
+                            ", ".join(restricted_objects),
+                        ),
+                        set(chain.from_iterable(restricted_objects.values())),
+                    )
+
     def related_objects(self, related_model, related_fields, objs):
         """
         Get a QuerySet of the related model to objs via related fields.
@@ -549,4 +697,92 @@ class Collector:
         for model, instances in self.data.items():
             for instance in instances:
                 setattr(instance, model._meta.pk.attname, None)
+        return sum(deleted_counter.values()), dict(deleted_counter)
+
+    async def adelete(self, session):
+        # sort instance collections
+        for model, instances in self.data.items():
+            self.data[model] = sorted(instances, key=attrgetter("pk"))
+
+        self.sort()
+        deleted_counter = Counter()
+
+        # Optimize for the case with a single obj and no dependencies
+        if len(self.data) == 1 and len(instances) == 1:
+            instance = list(instances)[0]
+            if self.can_fast_delete(instance):
+                async with session.atomic():
+                    count = await sql.DeleteQuery(model).adelete_batch(
+                        [instance.pk], self.using, session
+                    )
+                setattr(instance, model._meta.pk.attname, None)
+                return count, {model._meta.label: count}
+
+        async with session.atomic():
+            # send pre_delete signals
+            for model, obj in self.instances_with_model():
+                if not model._meta.auto_created:
+                    await sync_to_async(signals.pre_delete.send)(
+                        sender=model,
+                        instance=obj,
+                        using=self.using,
+                        origin=self.origin,
+                    )
+
+            # fast deletes
+            for qs in self.fast_deletes:
+                count = await qs._raw_delete_async(session, using=self.using)
+                if count:
+                    deleted_counter[qs.model._meta.label] += count
+
+            # update fields
+            for (field, value), instances_list in self.field_updates.items():
+                updates = []
+                objs = []
+                for instances in instances_list:
+                    if (
+                        isinstance(instances, models.QuerySet)
+                        and instances._result_cache is None
+                    ):
+                        updates.append(instances)
+                    else:
+                        objs.extend(instances)
+                if updates:
+                    combined_updates = reduce(or_, updates)
+                    await combined_updates.aupdate(session, **{field.name: value})
+                if objs:
+                    model = objs[0].__class__
+                    query = sql.UpdateQuery(model)
+                    await query.aupdate_batch(
+                        list({obj.pk for obj in objs}),
+                        {field.name: value},
+                        self.using,
+                        session,
+                    )
+
+            # reverse instance collections
+            for instances in self.data.values():
+                instances.reverse()
+
+            # delete instances
+            for model, instances in self.data.items():
+                query = sql.DeleteQuery(model)
+                pk_list = [obj.pk for obj in instances]
+                count = await query.adelete_batch(pk_list, self.using, session)
+                if count:
+                    deleted_counter[model._meta.label] += count
+
+                if not model._meta.auto_created:
+                    for obj in instances:
+                        await sync_to_async(signals.post_delete.send)(
+                            sender=model,
+                            instance=obj,
+                            using=self.using,
+                            origin=self.origin,
+                        )
+
+        for model, instances in self.data.items():
+            for instance in instances:
+                setattr(instance, model._meta.pk.attname, None)
+
         return sum(deleted_counter.values()), dict(deleted_counter)

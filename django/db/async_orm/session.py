@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import AbstractAsyncContextManager
 from typing import Any
 
 from .backends.sqlite import AsyncSQLiteBackend
@@ -36,16 +37,55 @@ class AsyncResult:
         await self._backend.close_cursor(self._raw)
 
 
+class _AtomicContext(AbstractAsyncContextManager):
+    """Async transaction/savepoint context manager for AsyncSession."""
+
+    def __init__(self, session: "AsyncSession"):
+        self._session = session
+
+    async def __aenter__(self):
+        session = self._session
+        await session._ensure_connection()
+        if session._atomic_nesting == 0:
+            await session.execute("BEGIN")
+        else:
+            await session.execute(f"SAVEPOINT _asp_{session._atomic_nesting}")
+        session._atomic_nesting += 1
+        return session
+
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        session = self._session
+        session._atomic_nesting -= 1
+        if exc_type is None:
+            if session._atomic_nesting == 0:
+                await session.execute("COMMIT")
+            else:
+                await session.execute(f"RELEASE SAVEPOINT _asp_{session._atomic_nesting}")
+        else:
+            if session._atomic_nesting == 0:
+                await session.execute("ROLLBACK")
+            else:
+                await session.execute(f"ROLLBACK TO SAVEPOINT _asp_{session._atomic_nesting}")
+
+
 class AsyncSession:
     """Explicit, scoped async database session."""
 
     def __init__(self, backend: Any):
         self._backend = backend
         self._conn: Any = None
+        self._atomic_nesting = 0
 
     async def _ensure_connection(self) -> None:
         if self._conn is None:
             self._conn = await self._backend.connect()
+
+    def atomic(self) -> _AtomicContext:
+        """Return an async context manager that begins/commits or rolls back a transaction.
+
+        Nesting is implemented with SAVEPOINT/RELEASE SAVEPOINT.
+        """
+        return _AtomicContext(self)
 
     async def execute(self, sql: str, params: tuple | list | None = None) -> AsyncResult:
         await self._ensure_connection()
@@ -89,8 +129,8 @@ class AsyncDatabase:
             if rest == ":memory:":
                 path = ":memory:"
             else:
-                # Path may start with /// or //host/; keep it simple.
-                path = rest.lstrip("/")
+                # sqlite+aiosqlite:///absolute/path -> rest is /absolute/path
+                path = rest[1:] if rest.startswith("/") else rest
                 if not path:
                     path = ":memory:"
             return AsyncSQLiteBackend(path)
